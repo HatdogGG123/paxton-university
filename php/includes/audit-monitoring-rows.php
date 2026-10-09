@@ -1,0 +1,9 @@
+<?php foreach ($auditEntries as $entry): $auditModule = trim(($entry['entity'] ? $entry['entity'] . ($entry['entity_id'] ? ' #' . $entry['entity_id'] : '') . ' - ' : '') . (string) $entry['details']); $auditIp = (string) ($entry['ip_address'] ?? ''); ?><tr class="log-row" data-role="<?= $auditEsc($entry['role'] ?? 'System') ?>" data-action="<?= $auditEsc($auditFilterAction((string) $entry['action'])) ?>" data-date="<?= $auditEsc(date('Y-m-d', strtotime($entry['created_at']))) ?>">
+    <td class="py-3 px-4 font-display text-[11px] text-gray-500 break-words"><?= $auditEsc($entry['created_at']) ?></td>
+    <td class="py-3 px-4 break-words"><div class="font-bold text-gray-900 log-user break-words"><?= $auditEsc($entry['full_name']) ?></div><div class="text-[10px] text-gray-400 break-words"><?= $auditEsc($entry['username'] ?: 'System') ?></div></td>
+    <td class="py-3 px-4 break-words"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-800"><?= $auditEsc($entry['role'] ?: 'System') ?></span></td>
+    <td class="py-3 px-4 break-words"><span class="inline-block max-w-full whitespace-normal break-all font-semibold text-brand-primary"><span class="inline-block w-1.5 h-1.5 rounded-full bg-brand-primary mr-1 align-middle"></span><?= $auditEsc($entry['action']) ?></span></td>
+    <td class="py-3 px-4 text-gray-600 break-words"><?= $auditModule !== '' ? $auditEsc($auditModule) : '&mdash;' ?></td>
+    <td class="py-3 px-4 text-right font-mono text-[11px] text-gray-700 whitespace-normal break-all"><?= $auditIp !== '' ? $auditEsc($auditIp) : '&mdash;' ?></td>
+</tr><?php endforeach; ?>
+<?php if (!$auditEntries): ?><tr><td colspan="6" class="py-8 px-4 text-center text-gray-500">No audit events have been recorded.</td></tr><?php endif; ?>
