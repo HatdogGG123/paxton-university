@@ -1,4 +1,4 @@
-# SSIS Conditions and Process Rules
+﻿# SSIS Conditions and Process Rules
 
 This file records the main conditions that decide **what the system displays** and **whether an action is allowed**. It reflects the current project code and is intended as a readable reference for the team. The controller and database checks are the final authority; hiding or disabling a button in the browser alone does not grant or deny access.
 
@@ -147,7 +147,6 @@ The status path depends on request state and fee:
 | `Paid` | `Processing` (payment must actually be Paid) |
 | `Processing` | `Ready for Release` |
 | `Ready for Release` | `Completed` |
-| `Approved` (enrollment request) | `Enrolled` |
 | Any other state | No normal transition |
 
 - Rejection is a separate action and requires a reason. The reason is limited to 500 characters.
@@ -227,3 +226,5 @@ Related multi-record changes are often wrapped in database transactions. If vali
 | Database constraints and available states | `ssis-schema.sql` |
 
 When a rule changes, update both the user-facing page behavior and the server-side validation, then revise this file so it remains a reliable guide.
+
+
