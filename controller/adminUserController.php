@@ -55,34 +55,38 @@ try {
         $applicant = null;
         if ($role === 'Applicant') {
             $applicant = [
-                'first_name' => trim((string)($_POST['first_name']??'')),
-                'middle_name' => trim((string)($_POST['middle_name']??'')),
-                'last_name' => trim((string)($_POST['last_name']??'')),
-                'contact_number' => trim((string)($_POST['contact_number']??'')),
-                'address' => trim((string)($_POST['address']??'')),
-                'program_id' => filter_var($_POST['program_id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]) ?: null,
+                'first_name' => trim((string)($_POST['first_name'] ?? '')),
+                'middle_name' => trim((string)($_POST['middle_name'] ?? '')),
+                'last_name' => trim((string)($_POST['last_name'] ?? '')),
+                'contact_number' => trim((string)($_POST['contact_number'] ?? '')),
+                'address' => trim((string)($_POST['address'] ?? '')),
+                'program_id' => filter_var($_POST['program_id'] ?? '', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: null,
             ];
-            if($applicant['first_name']===''||mb_strlen($applicant['first_name'])>60||mb_strlen($applicant['middle_name'])>60||$applicant['last_name']===''||mb_strlen($applicant['last_name'])>60||$applicant['contact_number']===''||mb_strlen($applicant['contact_number'])>20||$applicant['address']===''||mb_strlen($applicant['address'])>255||!$applicant['program_id']) throw new DomainException('Complete the applicant name, contact, address, and program fields.');
-            $validProgram=$db->prepare("SELECT 1 FROM programs p JOIN departments d ON d.id=p.department_id WHERE p.id=:id AND p.is_active=1 AND d.is_active=1 AND d.dept_type='Academic'");
-            $validProgram->execute(['id'=>$applicant['program_id']]);
-            if(!$validProgram->fetchColumn())throw new DomainException('Choose an active academic program.');
+            if ($applicant['first_name'] === '' || mb_strlen($applicant['first_name']) > 60 || mb_strlen($applicant['middle_name']) > 60 || $applicant['last_name'] === '' || mb_strlen($applicant['last_name']) > 60 || $applicant['contact_number'] === '' || mb_strlen($applicant['contact_number']) > 20 || $applicant['address'] === '' || mb_strlen($applicant['address']) > 255 || !$applicant['program_id']) throw new DomainException('Complete the applicant name, contact, address, and program fields.');
+            $validProgram = $db->prepare("SELECT 1 FROM programs p JOIN departments d ON d.id=p.department_id WHERE p.id=:id AND p.is_active=1 AND d.is_active=1 AND d.dept_type='Academic'");
+            $validProgram->execute(['id' => $applicant['program_id']]);
+            if (!$validProgram->fetchColumn()) throw new DomainException('Choose an active academic program.');
         }
         $db->beginTransaction();
         try {
-            $fullName=$applicant ? trim($applicant['first_name'].' '.$applicant['middle_name'].' '.$applicant['last_name']) : null;
+            $fullName = $applicant ? trim($applicant['first_name'] . ' ' . $applicant['middle_name'] . ' ' . $applicant['last_name']) : null;
             $insert = $db->prepare("INSERT INTO users (username, email, password_hash, role, department_id, full_name, status, must_change_password) VALUES (:username, :email, :password_hash, :role, :department_id, :full_name, 'Active', 1)");
-            $insert->execute(['username' => $username, 'email' => $email, 'password_hash' => password_hash($password, PASSWORD_DEFAULT), 'role' => $role, 'department_id' => $departmentId, 'full_name'=>$fullName]);
+            $insert->execute(['username' => $username, 'email' => $email, 'password_hash' => password_hash($password, PASSWORD_DEFAULT), 'role' => $role, 'department_id' => $departmentId, 'full_name' => $fullName]);
             $id = (int) $db->lastInsertId();
-            if($applicant){
-                $year=(int)date('Y');
-                $db->prepare("INSERT INTO number_sequences(seq_type,seq_year,last_number) VALUES('application_no',:year,1) ON DUPLICATE KEY UPDATE last_number=last_number+1")->execute(['year'=>$year]);
-                $seq=$db->prepare("SELECT last_number FROM number_sequences WHERE seq_type='application_no' AND seq_year=:year FOR UPDATE");$seq->execute(['year'=>$year]);
-                $applicationNo=sprintf('APP-%d-%05d',$year,(int)$seq->fetchColumn());
-                $createApplication=$db->prepare("INSERT INTO admission_applications(application_no,first_name,middle_name,last_name,email,contact_number,address,program_id,applicant_user_id) VALUES(:number,:first,:middle,:last,:email,:contact,:address,:program,:user_id)");
-                $createApplication->execute(['number'=>$applicationNo,'first'=>$applicant['first_name'],'middle'=>$applicant['middle_name']?:null,'last'=>$applicant['last_name'],'email'=>$email,'contact'=>$applicant['contact_number'],'address'=>$applicant['address'],'program'=>$applicant['program_id'],'user_id'=>$id]);
+            if ($applicant) {
+                $year = (int)date('Y');
+                $db->prepare("INSERT INTO number_sequences(seq_type,seq_year,last_number) VALUES('application_no',:year,1) ON DUPLICATE KEY UPDATE last_number=last_number+1")->execute(['year' => $year]);
+                $seq = $db->prepare("SELECT last_number FROM number_sequences WHERE seq_type='application_no' AND seq_year=:year FOR UPDATE");
+                $seq->execute(['year' => $year]);
+                $applicationNo = sprintf('APP-%d-%05d', $year, (int)$seq->fetchColumn());
+                $createApplication = $db->prepare("INSERT INTO admission_applications(application_no,first_name,middle_name,last_name,email,contact_number,address,program_id,applicant_user_id) VALUES(:number,:first,:middle,:last,:email,:contact,:address,:program,:user_id)");
+                $createApplication->execute(['number' => $applicationNo, 'first' => $applicant['first_name'], 'middle' => $applicant['middle_name'] ?: null, 'last' => $applicant['last_name'], 'email' => $email, 'contact' => $applicant['contact_number'], 'address' => $applicant['address'], 'program' => $applicant['program_id'], 'user_id' => $id]);
             }
             $db->commit();
-        } catch(Throwable $exception) { if($db->inTransaction())$db->rollBack(); throw $exception; }
+        } catch (Throwable $exception) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $exception;
+        }
         $message = 'User account created.';
     }
     $query = $db->prepare('SELECT u.id, u.username, u.email, u.role, u.department_id, u.status, d.name AS department_name, a.first_name, a.middle_name, a.last_name, a.contact_number, a.address, a.program_id FROM users u LEFT JOIN departments d ON d.id = u.department_id LEFT JOIN admission_applications a ON a.applicant_user_id=u.id WHERE u.id = :id');
@@ -91,8 +95,10 @@ try {
     if (!$user) throw new RuntimeException('Saved account could not be loaded.');
     try {
         $audit = $db->prepare('INSERT INTO audit_logs (user_id,action,entity,entity_id,details,ip_address) VALUES (:admin,:action,\'User Account\',:id,:details,:ip)');
-        $audit->execute(['admin'=>(int)$_SESSION['user']['id'],'action'=>$userId?'USER_ACCOUNT_UPDATED':'USER_ACCOUNT_CREATED','id'=>$id,'details'=>($userId?'Updated':'Created').' account '.$username.'.','ip'=>substr((string)($_SERVER['REMOTE_ADDR']??''),0,45)]);
-    } catch (Throwable $auditException) { error_log('SSIS admin user audit failed: '.$auditException->getMessage()); }
+        $audit->execute(['admin' => (int)$_SESSION['user']['id'], 'action' => $userId ? 'USER_ACCOUNT_UPDATED' : 'USER_ACCOUNT_CREATED', 'id' => $id, 'details' => ($userId ? 'Updated' : 'Created') . ' account ' . $username . '.', 'ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45)]);
+    } catch (Throwable $auditException) {
+        error_log('SSIS admin user audit failed: ' . $auditException->getMessage());
+    }
     $newApplicantCount = (new Admission($db))->newApplicantCount();
     admin_user_json(200, ['status' => 'success', 'message' => $message, 'data' => $user, 'new_applicant_count' => $newApplicantCount]);
 } catch (DomainException $exception) {

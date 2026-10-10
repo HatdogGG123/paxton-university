@@ -209,7 +209,15 @@ unset($_SESSION['account_email_notice']);
                                             <td class="py-3 px-4 text-center"><span class="inline-flex items-center gap-1.5 text-xs font-medium <?= $userStatus === 'Active' ? 'text-emerald-700' : 'text-gray-500' ?>"><span class="w-1.5 h-1.5 rounded-full <?= $userStatus === 'Active' ? 'bg-emerald-500' : 'bg-gray-400' ?>"></span><?= htmlspecialchars($userStatus, ENT_QUOTES, 'UTF-8') ?></span></td>
                                             <td class="py-3 px-4 text-right"><button type="button" class="btn-edit-user p-1.5 text-gray-500 hover:text-brand-primary rounded-md hover:bg-gray-100" title="Edit Account" data-id="<?= (int) $user['id'] ?>" data-username="<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>" data-email="<?= htmlspecialchars($user['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>" data-role="<?= htmlspecialchars($userRole, ENT_QUOTES, 'UTF-8') ?>" data-department="<?= htmlspecialchars($departmentId, ENT_QUOTES, 'UTF-8') ?>" data-first-name="<?= htmlspecialchars($user['first_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>" data-middle-name="<?= htmlspecialchars($user['middle_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>" data-last-name="<?= htmlspecialchars($user['last_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>" data-contact-number="<?= htmlspecialchars($user['contact_number'] ?? '', ENT_QUOTES, 'UTF-8') ?>" data-address="<?= htmlspecialchars($user['address'] ?? '', ENT_QUOTES, 'UTF-8') ?>" data-program="<?= (int) ($user['program_id'] ?? 0) ?>"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
-                                                    </svg></button></td>
+                                                    </svg></button>
+                                                <?php if ((int) $user['id'] !== 1 && (int) $user['id'] !== (int) ($_SESSION['user']['id'] ?? 0)): $isActiveUser = $userStatus === 'Active'; ?>
+                                                    <button type="button" class="btn-toggle-status p-1.5 ml-1 text-gray-500 <?= $isActiveUser ? 'hover:text-red-600' : 'hover:text-emerald-600' ?> rounded-md hover:bg-gray-100" title="<?= $isActiveUser ? 'Deactivate Account' : 'Activate Account' ?>" data-id="<?= (int) $user['id'] ?>" data-username="<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>" data-action="<?= $isActiveUser ? 'Disable' : 'Enable' ?>">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<?= $isActiveUser ? 'M18.364 5.636a9 9 0 11-12.728 0M12 3v9' : 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' ?>"></path>
+                                                        </svg>
+                                                    </button>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -498,6 +506,8 @@ unset($_SESSION['account_email_notice']);
                         edit.dataset.program = user.program_id || '';
                         edit.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>';
                         actions.append(edit);
+                        const toggle = buildStatusToggle(user);
+                        if (toggle) actions.append(toggle);
                         row.append(userCell, email, roleCell, department, status, actions);
                         if (isNew) document.getElementById('user_table_body').prepend(row);
                         if (Number.isInteger(Number(response.new_applicant_count)) && typeof window.updateAdmissionsBadge === 'function') {
@@ -516,20 +526,75 @@ unset($_SESSION['account_email_notice']);
                     });
             });
 
-            // Toggle Account Status (Enable/Disable Rule: Admin cannot disable self)
-            $(document).on('click', '.btn-toggle-status', function() {
-                const userId = $(this).attr('data-id');
-                const username = $(this).attr('data-username');
-                const action = $(this).attr('data-action');
+            // Activate / deactivate an account (saved through adminUserStatusController.php)
+            const currentUserId = <?= (int) ($_SESSION['user']['id'] ?? 0) ?>;
 
-                if (userId === '1') {
-                    showToast('error', 'Security Restriction: Administrators are strictly prohibited from disabling their own logged-in account.');
+            function buildStatusToggle(user) {
+                if (Number(user.id) === 1 || Number(user.id) === currentUserId) return null;
+                const isActive = user.status === 'Active';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn-toggle-status p-1.5 ml-1 text-gray-500 ' + (isActive ? 'hover:text-red-600' : 'hover:text-emerald-600') + ' rounded-md hover:bg-gray-100';
+                button.title = isActive ? 'Deactivate Account' : 'Activate Account';
+                button.dataset.id = user.id;
+                button.dataset.username = user.username;
+                button.dataset.action = isActive ? 'Disable' : 'Enable';
+                button.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + (isActive ? 'M18.364 5.636a9 9 0 11-12.728 0M12 3v9' : 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z') + '"></path></svg>';
+                return button;
+            }
+
+            $(document).on('click', '.btn-toggle-status', function() {
+                const button = $(this);
+                const userId = Number(button.attr('data-id'));
+                const username = button.attr('data-username');
+                const action = button.attr('data-action');
+                const newStatus = action === 'Disable' ? 'Inactive' : 'Active';
+
+                if (userId === 1 || userId === currentUserId) {
+                    showToast('error', 'This account cannot be activated or deactivated.');
                     return;
                 }
+                if (!confirm(`Are you sure you want to ${action === 'Disable' ? 'deactivate' : 'activate'} account "${username}"?`)) return;
 
-                if (confirm(`Are you sure you want to ${action.toLowerCase()} account "${username}"?`)) {
-                    showToast('success', `Account "${username}" has been successfully set to ${action === 'Disable' ? 'Inactive' : 'Active'}.`);
-                }
+                button.prop('disabled', true);
+                $.ajax({
+                        url: '../../controller/adminUserStatusController.php',
+                        method: 'POST',
+                        data: {
+                            csrf_token: $('#form_user input[name="csrf_token"]').val(),
+                            user_id: userId,
+                            status: newStatus
+                        },
+                        dataType: 'json'
+                    })
+                    .done(function(response) {
+                        if (!response || response.status !== 'success' || !response.data) {
+                            showToast('error', response?.message || 'The account status could not be updated.');
+                            return;
+                        }
+                        const user = response.data;
+                        const row = button.closest('tr')[0];
+                        row.dataset.status = user.status;
+                        const isActive = user.status === 'Active';
+                        const statusCell = row.children[4];
+                        statusCell.replaceChildren();
+                        const statusLabel = document.createElement('span');
+                        statusLabel.className = 'inline-flex items-center gap-1.5 text-xs font-medium ' + (isActive ? 'text-emerald-700' : 'text-gray-500');
+                        const dot = document.createElement('span');
+                        dot.className = 'w-1.5 h-1.5 rounded-full ' + (isActive ? 'bg-emerald-500' : 'bg-gray-400');
+                        statusLabel.append(dot, document.createTextNode(user.status));
+                        statusCell.append(statusLabel);
+                        const replacement = buildStatusToggle(user);
+                        if (replacement) button.replaceWith(replacement);
+                        filterUsers();
+                        showToast('success', response.message || 'Account status updated.');
+                    })
+                    .fail(function(xhr) {
+                        showToast('error', xhr.responseJSON?.message || 'The account status could not be updated. Please try again.');
+                    })
+                    .always(function() {
+                        button.prop('disabled', false);
+                    });
             });
 
         });
