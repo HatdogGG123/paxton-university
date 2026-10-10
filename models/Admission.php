@@ -87,7 +87,15 @@ final class Admission
 
     public function newApplicantCount(): int
     {
-        return (int) $this->db->query("SELECT COUNT(*) FROM admission_applications WHERE status = 'Pending'")->fetchColumn();
+        // New applicants: still open and not yet touched by staff (no application decision and no document reviewed).
+        // Uploading documents moves the status past 'Pending', so the status alone cannot identify a new applicant.
+        return (int) $this->db->query(
+            "SELECT COUNT(*)
+             FROM admission_applications a
+             WHERE a.status IN ('Pending', 'Under Review', 'Documents Required')
+               AND a.reviewed_at IS NULL
+               AND NOT EXISTS (SELECT 1 FROM admission_documents d WHERE d.application_id = a.id AND d.reviewed_at IS NOT NULL)"
+        )->fetchColumn();
     }
 
     public function requirements(): array

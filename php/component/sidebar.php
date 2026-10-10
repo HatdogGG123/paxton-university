@@ -130,12 +130,13 @@ $name = $_SESSION['user']['full_name'] ?? $_SESSION['user']['username'] ?? 'User
     </div>
     <nav class="py-4 flex-1 overflow-y-auto">
         <?php foreach ($items as $label => $url): ?>
-                <a class="ssis-sidebar-link <?= $current === basename($url) ? 'is-active' : '' ?>" href="<?= htmlspecialchars($base . '/php/' . $url, ENT_QUOTES, 'UTF-8') ?>"<?= $label === 'Admissions' && $newApplicantCount > 0 ? ' aria-label="Admissions, ' . $newApplicantCount . ' new applicants"' : ($label === 'Notifications' && $unreadNotificationCount > 0 ? ' aria-label="Notifications, ' . $unreadNotificationCount . ' unread"' : '') ?>>
-                    <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
-                    <?php if ($label === 'Admissions'): ?><span data-admissions-count class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white<?= $newApplicantCount > 0 ? '' : ' hidden' ?>"<?= $newApplicantCount > 0 ? '' : ' hidden' ?>><?= $newApplicantCount > 99 ? '99+' : $newApplicantCount ?></span><?php endif; ?>
-                    <?php if ($label === 'Notifications' && $unreadNotificationCount > 0): ?><span data-notification-count class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"><?= $unreadNotificationCount > 99 ? '99+' : $unreadNotificationCount ?></span><?php endif; ?>
-                </a>
-        <?php endforeach; ?></nav>
+            <a class="ssis-sidebar-link <?= $current === basename($url) ? 'is-active' : '' ?>" href="<?= htmlspecialchars($base . '/php/' . $url, ENT_QUOTES, 'UTF-8') ?>" <?= $label === 'Admissions' && $newApplicantCount > 0 ? ' aria-label="Admissions, ' . $newApplicantCount . ' new applicants"' : ($label === 'Notifications' && $unreadNotificationCount > 0 ? ' aria-label="Notifications, ' . $unreadNotificationCount . ' unread"' : '') ?>>
+                <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
+                <?php if ($label === 'Admissions'): ?><span data-admissions-count class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white<?= $newApplicantCount > 0 ? '' : ' hidden' ?>" <?= $newApplicantCount > 0 ? '' : ' hidden' ?>><?= $newApplicantCount > 99 ? '99+' : $newApplicantCount ?></span><?php endif; ?>
+                <?php if ($label === 'Notifications' && $unreadNotificationCount > 0): ?><span data-notification-count class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"><?= $unreadNotificationCount > 99 ? '99+' : $unreadNotificationCount ?></span><?php endif; ?>
+            </a>
+        <?php endforeach; ?>
+    </nav>
     <div class="border-t p-4">
         <div class="text-xs font-semibold truncate"><?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?></div><a class="text-xs text-red-700 inline-block mt-2" href="<?= htmlspecialchars($base . '/php/logout.php', ENT_QUOTES, 'UTF-8') ?>">Log out</a>
     </div>
@@ -161,52 +162,55 @@ $name = $_SESSION['user']['full_name'] ?? $_SESSION['user']['username'] ?? 'User
     })();
 </script>
 <?php if (in_array($role, ['admin', 'registrar'], true)): ?>
-<script>
-    (function() {
-        var countEndpoint = <?= json_encode($base . '/controller/admissionCountController.php', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
-        var refreshInProgress = false;
+    <script>
+        (function() {
+            var countEndpoint = <?= json_encode($base . '/controller/admissionCountController.php', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+            var refreshInProgress = false;
 
-        window.updateAdmissionsBadge = function(value) {
-            var badge = document.querySelector('[data-admissions-count]');
-            if (!badge) return;
+            window.updateAdmissionsBadge = function(value) {
+                var badge = document.querySelector('[data-admissions-count]');
+                if (!badge) return;
 
-            var count = Math.max(0, Number.parseInt(value, 10) || 0);
-            badge.textContent = count > 99 ? '99+' : String(count);
-            badge.hidden = count === 0;
-            badge.classList.toggle('hidden', count === 0);
+                var count = Math.max(0, Number.parseInt(value, 10) || 0);
+                badge.textContent = count > 99 ? '99+' : String(count);
+                badge.hidden = count === 0;
+                badge.classList.toggle('hidden', count === 0);
 
-            var link = badge.closest('a');
-            if (link) {
-                if (count > 0) link.setAttribute('aria-label', 'Admissions, ' + count + ' new applicants');
-                else link.removeAttribute('aria-label');
-            }
-        };
-
-        async function refreshAdmissionsBadge() {
-            if (refreshInProgress || document.hidden) return;
-            refreshInProgress = true;
-            try {
-                var response = await fetch(countEndpoint, {
-                    credentials: 'same-origin',
-                    cache: 'no-store',
-                    headers: { 'Accept': 'application/json' }
-                });
-                if (!response.ok) return;
-                var result = await response.json();
-                if (result.status === 'success' && Number.isFinite(Number(result.count))) {
-                    window.updateAdmissionsBadge(result.count);
+                var link = badge.closest('a');
+                if (link) {
+                    if (count > 0) link.setAttribute('aria-label', 'Admissions, ' + count + ' new applicants');
+                    else link.removeAttribute('aria-label');
                 }
-            } catch (error) {
-                // A background count refresh should not interrupt the current page.
-            } finally {
-                refreshInProgress = false;
-            }
-        }
+            };
 
-        refreshAdmissionsBadge();
-        window.setInterval(refreshAdmissionsBadge, 10000);
-        window.addEventListener('focus', refreshAdmissionsBadge);
-        document.addEventListener('visibilitychange', refreshAdmissionsBadge);
-    })();
-</script>
+            async function refreshAdmissionsBadge() {
+                if (refreshInProgress || document.hidden) return;
+                refreshInProgress = true;
+                try {
+                    var response = await fetch(countEndpoint, {
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    if (!response.ok) return;
+                    var result = await response.json();
+                    if (result.status === 'success' && Number.isFinite(Number(result.count))) {
+                        window.updateAdmissionsBadge(result.count);
+                    }
+                } catch (error) {
+                    // A background count refresh should not interrupt the current page.
+                } finally {
+                    refreshInProgress = false;
+                }
+            }
+
+            window.refreshAdmissionsBadge = refreshAdmissionsBadge;
+            refreshAdmissionsBadge();
+            window.setInterval(refreshAdmissionsBadge, 10000);
+            window.addEventListener('focus', refreshAdmissionsBadge);
+            document.addEventListener('visibilitychange', refreshAdmissionsBadge);
+        })();
+    </script>
 <?php endif; ?>
