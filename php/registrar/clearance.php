@@ -179,11 +179,11 @@ foreach ($queue as $item) {
             <div class="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <h2 class="text-base font-bold text-brand-dark">Registrar Clearance Queue</h2>
                 <div class="flex items-center space-x-2">
-                    <input type="text" placeholder="Search Student Name or ID..." class="px-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-secondary">
+                    <input id="search_registrar_clearance" type="search" placeholder="Search Student Name or ID..." class="px-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-secondary">
                 </div>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[750px] text-left text-xs border-collapse">
+                <table id="table_registrar_clearance" class="w-full min-w-[750px] table-fixed text-left text-xs border-collapse">
                     <thead>
                         <tr class="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase font-semibold">
                             <th class="py-3 px-5 whitespace-nowrap">Student</th>
@@ -195,7 +195,7 @@ foreach ($queue as $item) {
                     </thead>
                     <tbody class="divide-y divide-gray-100 font-medium text-gray-700">
                         <?php foreach ($queue as $item): $overallText = $item['overall_status'] === 'Cleared' ? 'Fully Cleared' : ($item['overall_status'] === 'Action Needed' ? 'Blocked' : 'Pending Holds'); ?>
-                            <tr class="hover:bg-gray-50/50" data-clearance-item-id="<?= (int) $item['item_id'] ?>">
+                            <tr class="hover:bg-gray-50/50" data-clearance-item-id="<?= (int) $item['item_id'] ?>" data-search="<?= $esc($item['student_name'] . ' ' . $item['student_no']) ?>">
                                 <td class="py-3.5 px-5 whitespace-nowrap">
                                     <p class="font-bold text-brand-dark"><?= $esc($item['student_name']) ?></p>
                                     <p class="text-gray-400 text-[11px] font-display"><?= $esc($item['student_no']) ?> (<?= $esc($item['program_code']) ?>)</p>
@@ -368,6 +368,14 @@ foreach ($queue as $item) {
 
         $(document).ready(function() {
             lucide.createIcons();
+            $('#search_registrar_clearance').on('input', function() {
+                const query = (this.value || '').trim().toLowerCase();
+                const table = document.getElementById('table_registrar_clearance');
+                table.dataset.localPage = '1';
+                $('#table_registrar_clearance tbody tr[data-search]').each(function() {
+                    this.style.display = this.dataset.search.toLowerCase().includes(query) ? 'table-row' : 'none';
+                });
+            });
         });
 
         // Approve Modal Handler (Replaces browser confirm)

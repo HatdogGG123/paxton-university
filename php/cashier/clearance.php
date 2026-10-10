@@ -247,7 +247,7 @@ if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'
 
             <!-- Scrollable Table Body -->
             <div class="overflow-x-auto min-w-full">
-                <table id="table_clearance" class="w-full text-left text-xs border-collapse min-w-[640px]">
+                <table id="table_clearance" class="w-full table-fixed text-left text-xs border-collapse min-w-[640px]">
                     <thead>
                         <tr class="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase tracking-wider font-semibold">
                             <th class="py-3 px-3 w-28 whitespace-nowrap">Student ID</th>
@@ -444,12 +444,14 @@ if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'
             const query = ($('#filter_search').val() || '').toLowerCase();
             const status = $('#filter_status').val();
             const program = $('#filter_program').val();
+            const table = document.getElementById('table_clearance');
+            table.dataset.localPage = '1';
             $('#table_clearance tbody tr[data-student]').each(function() {
                 const row = $(this);
                 const visible = row.data('student').toLowerCase().includes(query)
                     && (!status || row.data('status') === status)
                     && (!program || row.data('program') === program);
-                row.toggle(visible);
+                this.style.display = visible ? 'table-row' : 'none';
             });
         }
 

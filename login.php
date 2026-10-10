@@ -7,6 +7,7 @@ require_once __DIR__ . '/models/User.php';
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+
 $loginToast = $_SESSION['login_toast'] ?? null;
 unset($_SESSION['login_toast']);
 
@@ -65,16 +66,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <body class="font-sans antialiased text-brand-dark min-h-screen relative flex flex-col justify-between overflow-x-hidden bg-brand-dark">
 
-    <!-- Background Image with Custom Colors -->
-    <div class="absolute inset-0 z-0 flex justify-end pointer-events-none">
-        <div class="relative w-full lg:w-2/3 h-full">
-            <img
-                src="https://images.pexels.com/photos/28412565/pexels-photo-28412565.jpeg"
-                alt="Modern Architecture"
-                class="w-full h-full object-cover object-left lg:object-right filter brightness-[0.6]" />
-            <!-- Gradient Overlay transition into #202020 -->
-            <div class="absolute inset-0 bg-gradient-to-r from-brand-dark via-brand-dark/60 to-transparent"></div>
-        </div>
+    <!-- Background Image and Gradient matching application.php -->
+    <div class="absolute inset-0 z-0 pointer-events-none">
+        <img src="https://images.pexels.com/photos/28412565/pexels-photo-28412565.jpeg" alt="" class="w-full h-full object-cover opacity-30">
+        <div class="absolute inset-0 bg-gradient-to-r from-brand-dark via-brand-dark/80 to-brand-dark/40"></div>
     </div>
 
     <!-- Top Logo Button -->
@@ -88,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </header>
 
     <!-- Login Card Container -->
-    <main class="relative z-10 px-6 md:px-16 lg:px-24 py-8 flex-1 flex items-center">
+    <main class="relative z-10 px-6 md:px-16 lg:px-24 py-8 flex-1 flex items-center justify-center">
         <div class="w-full max-w-sm">
 
             <!-- Card Container in Accent Color (#dad7cd) -->

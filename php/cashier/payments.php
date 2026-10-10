@@ -245,7 +245,7 @@
                 </div>
 
                 <div class="overflow-x-auto min-w-full">
-                    <table id="table_clearance" class="w-full text-left text-xs border-collapse min-w-[640px]">
+                    <table id="table_clearance" class="w-full table-fixed text-left text-xs border-collapse min-w-[640px]">
                         <thead>
                             <tr class="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase tracking-wider font-semibold">
                                 <th class="py-3 px-3 w-28 whitespace-nowrap">Request No.</th>
@@ -642,6 +642,9 @@
             if (new URLSearchParams(window.location.search).get('tab') === 'reports') {
                 $('#tab_btn_reports').trigger('click');
             }
+            if (new URLSearchParams(window.location.search).get('tab') === 'transactions') {
+                $('#tab_btn_transactions').trigger('click');
+            }
 
             // Modal Trigger Actions
             $('#btn_open_walkin_modal').on('click', function() {
@@ -659,15 +662,19 @@
                 $('#filter_search').val('');
                 $('#filter_status').val('');
                 $('#filter_method').val('');
+                $('#filter_search').trigger('input');
             });
 
             $('#filter_search, #filter_status, #filter_method').on('input change', function() {
                 const query = ($('#filter_search').val() || '').toLowerCase();
                 const status = $('#filter_status').val();
                 const method = $('#filter_method').val();
+                const table = document.getElementById('table_clearance');
+                table.dataset.localPage = '1';
                 $('#table_clearance tbody tr[data-record]').each(function() {
                     const row = $(this);
-                    row.toggle(row.data('record').toLowerCase().includes(query) && (!status || row.data('status') === status) && (!method || row.data('method') === method));
+                    const matches = row.data('record').toLowerCase().includes(query) && (!status || row.data('status') === status) && (!method || row.data('method') === method);
+                    this.style.display = matches ? 'table-row' : 'none';
                 });
             });
 
@@ -779,6 +786,10 @@
                     }
                     $('#modal_verify_payment, #modal_walkin_payment, #modal_reject_payment, #modal_refund_payment').addClass('hidden');
                     if (form.id === 'form_walkin_payment') resetWalkInPaymentForm();
+                    if (response.data?.receipt_payment_id) {
+                        window.location.assign('payments.php?tab=transactions');
+                        return;
+                    }
                     showToast('success', response.message || 'Payment updated successfully.');
                 } else {
                     var message = response && response.message ? response.message : 'The action could not be completed.';

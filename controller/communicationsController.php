@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../php/includes/auth.php';
 require_once __DIR__ . '/../models/RegistrarCommunications.php';
+require_once __DIR__ . '/../models/Notifications.php';
 ssis_start_session();
 header('Content-Type: application/json; charset=utf-8');
 ssis_require_role('registrar');
@@ -32,6 +33,9 @@ try {
     } else
         throw new DomainException('Choose a valid announcement action.');
     if ($action === 'deactivate') $data = ['announcement_id' => (int) ($_POST['announcement_id'] ?? 0)];
+    if ($action === 'publish' && (string) ($_POST['audience'] ?? '') === 'All') {
+        $data['unread_count'] = (new Notifications(Database::getConnection()))->getUnreadCount($userId);
+    }
     echo json_encode(['status' => 'success', 'message' => $message, 'data' => $data]);
 } catch (DomainException $e) {
     http_response_code(422);

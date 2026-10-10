@@ -130,7 +130,7 @@ $name = $_SESSION['user']['full_name'] ?? $_SESSION['user']['username'] ?? 'User
     </div>
     <nav class="py-4 flex-1 overflow-y-auto">
         <?php foreach ($items as $label => $url): ?>
-            <a class="ssis-sidebar-link <?= $current === basename($url) ? 'is-active' : '' ?>" href="<?= htmlspecialchars($base . '/php/' . $url, ENT_QUOTES, 'UTF-8') ?>" <?= $label === 'Admissions' && $newApplicantCount > 0 ? ' aria-label="Admissions, ' . $newApplicantCount . ' new applicants"' : ($label === 'Notifications' && $unreadNotificationCount > 0 ? ' aria-label="Notifications, ' . $unreadNotificationCount . ' unread"' : '') ?>>
+            <a class="ssis-sidebar-link <?= $current === basename($url) ? 'is-active' : '' ?>" href="<?= htmlspecialchars($base . '/php/' . $url, ENT_QUOTES, 'UTF-8') ?>" <?= $label === 'Notifications' ? ' data-notifications-link' : '' ?> <?= $label === 'Admissions' && $newApplicantCount > 0 ? ' aria-label="Admissions, ' . $newApplicantCount . ' new applicants"' : ($label === 'Notifications' && $unreadNotificationCount > 0 ? ' aria-label="Notifications, ' . $unreadNotificationCount . ' unread"' : '') ?>>
                 <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
                 <?php if ($label === 'Admissions'): ?><span data-admissions-count class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white<?= $newApplicantCount > 0 ? '' : ' hidden' ?>" <?= $newApplicantCount > 0 ? '' : ' hidden' ?>><?= $newApplicantCount > 99 ? '99+' : $newApplicantCount ?></span><?php endif; ?>
                 <?php if ($label === 'Notifications' && $unreadNotificationCount > 0): ?><span data-notification-count class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"><?= $unreadNotificationCount > 99 ? '99+' : $unreadNotificationCount ?></span><?php endif; ?>
@@ -160,6 +160,27 @@ $name = $_SESSION['user']['full_name'] ?? $_SESSION['user']['username'] ?? 'User
             if (e.key === 'Escape') close()
         })
     })();
+</script>
+<script>
+    window.updateNotificationsBadge = function(value) {
+        var link = document.querySelector('[data-notifications-link]');
+        if (!link) return;
+        var count = Math.max(0, Number.parseInt(value, 10) || 0);
+        var badge = link.querySelector('[data-notification-count]');
+        if (count === 0) {
+            badge?.remove();
+            link.removeAttribute('aria-label');
+            return;
+        }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.dataset.notificationCount = '';
+            badge.className = 'ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white';
+            link.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? '99+' : String(count);
+        link.setAttribute('aria-label', 'Notifications, ' + count + ' unread');
+    };
 </script>
 <?php if (in_array($role, ['admin', 'registrar'], true)): ?>
     <script>

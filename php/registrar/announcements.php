@@ -632,6 +632,9 @@ $communicationEsc = static fn($value): string => htmlspecialchars((string) ($val
                                 row.hidden = ![data.title, data.body, audience].join(' ').toLowerCase().includes(($('#search_announcements').val() || '').toLowerCase());
                                 var count = document.querySelector('[data-announcement-count]');
                                 if (count) count.textContent = String(Number(count.textContent.replace(/,/g, '')) + 1);
+                                if (data.audience === 'All' && Number.isFinite(Number(data.unread_count))) {
+                                    window.updateNotificationsBadge?.(data.unread_count);
+                                }
                                 form.reset();
                             } else if (action === 'send_message') {
                                 var tbody = document.querySelectorAll('table tbody')[1];
