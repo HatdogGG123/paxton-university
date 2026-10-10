@@ -74,7 +74,7 @@ Before running the cases:
 | PWD-04 | Enter a valid reset token and a mismatched confirmation or weak password. | Password is not changed and the form explains the password rule or mismatch. |
 | PWD-05 | Use the show/hide password control. | Both new-password fields switch between masked and visible text; the controlâ€™s accessible pressed state changes. |
 | PWD-06 | Follow a valid link from the requesting IP and enter a valid new password twice. | Password hash changes, `must_change_password` clears, token is consumed, success toast appears, and the new password works at Login while the old one fails. |
-| PWD-07 | Request reset links repeatedly for one email or from one IP. | Requests are rate limited by both email and source IP during the configured cooldown. |
+| PWD-07 | Request more than two password reset links for the same account in one calendar month. | Only the first two requests send links; later requests receive the same generic response and do not send another email. Existing email/IP cooldown limits also apply. |
 | PWD-08 | Try a password reset for an inactive account or after the email on the account has changed. | Reset is denied and no password or account status changes. |
 | PWD-09 | Reuse a consumed token or alter its contents. | Reset is denied and the password remains unchanged; only a hash of the token is stored. |
 

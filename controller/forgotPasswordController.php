@@ -41,20 +41,29 @@ try {
         $limiter->fail($email, 'Password Reset');
         $limiter->fail($ipIdentity, 'Password Reset');
 
-        $query = $db->prepare("SELECT id, email FROM users WHERE email = :email AND status = 'Active' LIMIT 1");
+        $db->beginTransaction();
+        $query = $db->prepare("SELECT id, email FROM users WHERE email = :email AND status = 'Active' LIMIT 1 FOR UPDATE");
         $query->execute(['email' => $email]);
         $user = $query->fetch();
+        $rawToken = null;
         if ($user) {
-            $rawToken = bin2hex(random_bytes(32));
-            $tokenHash = hash('sha256', $rawToken);
-            $db->prepare('UPDATE password_resets SET used_at = NOW() WHERE user_id = :user_id AND used_at IS NULL')
-                ->execute(['user_id' => $user['id']]);
-            $insert = $db->prepare(
-                'INSERT INTO password_resets (user_id, token_hash, ip_address, expires_at)
-                 VALUES (:user_id, :token_hash, :ip_address, DATE_ADD(NOW(), INTERVAL 30 MINUTE))'
-            );
-            $insert->execute(['user_id' => $user['id'], 'token_hash' => $tokenHash, 'ip_address' => $ipAddress]);
+            $monthlyCount = $db->prepare("SELECT COUNT(*) FROM password_resets WHERE user_id = :user_id AND created_at >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')");
+            $monthlyCount->execute(['user_id' => $user['id']]);
+            if ((int) $monthlyCount->fetchColumn() < 2) {
+                $rawToken = bin2hex(random_bytes(32));
+                $tokenHash = hash('sha256', $rawToken);
+                $db->prepare('UPDATE password_resets SET used_at = NOW() WHERE user_id = :user_id AND used_at IS NULL')
+                    ->execute(['user_id' => $user['id']]);
+                $insert = $db->prepare(
+                    'INSERT INTO password_resets (user_id, token_hash, ip_address, expires_at)
+                     VALUES (:user_id, :token_hash, :ip_address, DATE_ADD(NOW(), INTERVAL 30 MINUTE))'
+                );
+                $insert->execute(['user_id' => $user['id'], 'token_hash' => $tokenHash, 'ip_address' => $ipAddress]);
+            }
+        }
+        $db->commit();
 
+        if ($user && $rawToken !== null) {
             try {
                 $mailer = new EmailJsMailer();
                 $appUrl = $mailer->appUrl();
@@ -65,13 +74,14 @@ try {
                 $mailer->send((string) $user['email'], $resetUrl);
             } catch (Throwable $mailException) {
                 $db->prepare('UPDATE password_resets SET used_at = NOW() WHERE token_hash = :token_hash')
-                    ->execute(['token_hash' => $tokenHash]);
+                    ->execute(['token_hash' => hash('sha256', $rawToken)]);
                 error_log('SSIS EmailJS delivery failed: ' . $mailException->getMessage());
             }
         }
 
-        // Keep the response identical whether or not an active account uses this email.
-        password_reset_reply(200, ['status' => 'success', 'message' => 'If an active account uses that email, a reset link will arrive shortly. Check your inbox.']);
+        // Keep the response identical whether or not an active account uses this email
+        // or has reached the monthly cap, so the form cannot reveal account existence.
+        password_reset_reply(200, ['status' => 'success', 'message' => 'Request received. This confirmation does not tell you whether an email was sent. For security, reset links are limited to 2 per account each calendar month; additional requests will not send another link.']);
     }
 
     if ($action === 'reset_password') {
