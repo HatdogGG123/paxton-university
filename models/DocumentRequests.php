@@ -96,7 +96,7 @@ final class DocumentRequests
              INNER JOIN students student ON student.id = request.student_id
              INNER JOIN programs program ON program.id = student.program_id
              LEFT JOIN payments payment ON payment.request_id = request.id
-             ORDER BY FIELD(request.status, \'Pending\', \'Under Review\', \'For Payment\', \'Paid\', \'Processing\', \'Ready for Release\', \'Rejected\', \'Completed\', \'Cancelled\'), request.created_at ASC'
+             ORDER BY request.created_at ASC, request.id ASC'
         )->fetchAll();
     }
 

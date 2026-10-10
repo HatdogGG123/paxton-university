@@ -17,15 +17,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (($_POST['action'] ?? '') === 'approve_and_update') {
             $controller->updateReviewedSubjects((int) $_SESSION['user']['id'], $_POST);
-            $controller->reviewRequest((int) $_SESSION['user']['id'], $_POST + ['new_status' => 'Approved']);
+            $reviewResult = $controller->reviewRequest((int) $_SESSION['user']['id'], $_POST + ['new_status' => 'Approved']);
             $message = 'The subject load was saved and the enrollment request was approved.';
         } elseif (($_POST['action'] ?? '') === 'update_subjects') {
             $controller->updateReviewedSubjects((int) $_SESSION['user']['id'], $_POST);
             $message = 'The subject list was updated and the student was notified.';
         } else {
-            $controller->reviewRequest((int) $_SESSION['user']['id'], $_POST);
-            $message = 'Enrollment request updated and the student was notified.';
+            $reviewResult = $controller->reviewRequest((int) $_SESSION['user']['id'], $_POST);
+            $message = $reviewResult['message'];
         }
+        if (isset($reviewResult) && $reviewResult['status'] === 'Cancelled') $message = $reviewResult['message'];
         $_SESSION['registrar_enrollment_notice'] = ['type' => 'success', 'message' => $message];
         header('Location: enrollment.php' . (!empty($_GET['status']) ? '?status=' . rawurlencode((string) $_GET['status']) : ''));
         exit;
@@ -47,7 +48,9 @@ try {
 $statuses = ['Pending', 'Under Review', 'Approved', 'Enrolled', 'Rejected', 'Cancelled'];
 $requestedFilter = $_GET['status'] ?? null;
 $filter = is_string($requestedFilter) && in_array($requestedFilter, $statuses, true) ? $requestedFilter : '';
-$requests = $filter === '' ? $allRequests : array_values(array_filter($allRequests, static fn($row): bool => $row['status'] === $filter));
+$requests = $filter === ''
+    ? array_values(array_filter($allRequests, static fn($row): bool => $row['status'] !== 'Enrolled'))
+    : array_values(array_filter($allRequests, static fn($row): bool => $row['status'] === $filter));
 $counts = array_fill_keys($statuses, 0);
 foreach ($allRequests as $row) {
     $counts[$row['status']]++;
@@ -307,6 +310,7 @@ foreach ($requests as $row) {
         lucide.createIcons();
 
         const enrollmentRequests = <?= json_encode($requestsById, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        const enrollmentCsrfToken = <?= json_encode($_SESSION['csrf_token'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
         const unitLimit = <?= (int) $unitLimit ?>;
         let currentTotalUnits = 0;
         let selectedRequestId = null;
@@ -330,10 +334,25 @@ foreach ($requests as $row) {
             $('#modal_student_name').text('Review Request: ' + request.student_name);
             $('#modal_student_info').text(request.student_no + ' • ' + request.program_name + ' (' + request.year_level + ' Year)');
             const editable = request.status === 'Under Review' && !isReadOnly;
-            const subjects = editable ? request.eligible_subjects : request.subjects.map(subject => ({
+            const submittedSubjects = (request.subjects || []).map(subject => ({
                 ...subject,
                 is_selected: 1
             }));
+            let subjects = submittedSubjects;
+            if (editable) {
+                const subjectsById = new Map();
+                (request.eligible_subjects || []).forEach(subject => {
+                    subjectsById.set(String(subject.id), subject);
+                });
+                submittedSubjects.forEach(subject => {
+                    const subjectId = String(subject.id);
+                    const eligibleSubject = subjectsById.get(subjectId);
+                    subjectsById.set(subjectId, eligibleSubject
+                        ? { ...eligibleSubject, is_selected: 1 }
+                        : subject);
+                });
+                subjects = Array.from(subjectsById.values());
+            }
             $('#container_add_subject').toggleClass('hidden', !editable);
             $('#btn_approve_modal').toggleClass('hidden', !editable);
             $('#select_add_subject').html('<option value="" disabled selected>Add additional subject from curriculum...</option>');
@@ -441,7 +460,7 @@ foreach ($requests as $row) {
                         if (response && response.status === 'success') {
                             var enrollmentId = form.querySelector('[name="enrollment_id"]')?.value || document.getElementById('review_enrollment_id')?.value || document.getElementById('reject_enrollment_id')?.value;
                             var row = form.closest('tr') || Array.from(document.querySelectorAll('tbody tr')).find(function (candidate) { return candidate.querySelector('button[onclick*="' + Number(enrollmentId) + '"]') || candidate.querySelector('input[name="enrollment_id"][value="' + Number(enrollmentId) + '"]'); });
-                            var status = form.querySelector('[name="new_status"], [name="status"]')?.value || (form.querySelector('[name="action"]')?.value === 'approve_and_update' ? 'Approved' : (form.querySelector('[name="action"]')?.value === 'update_subjects' ? 'Under Review' : ''));
+                            var status = response.data?.status || form.querySelector('[name="new_status"], [name="status"]')?.value || (form.querySelector('[name="action"]')?.value === 'approve_and_update' ? 'Approved' : (form.querySelector('[name="action"]')?.value === 'update_subjects' ? 'Under Review' : ''));
                             if (status && enrollmentRequests[enrollmentId]) enrollmentRequests[enrollmentId].status = status;
                             if (row && status) {
                                 row.dataset.status = status;
@@ -461,9 +480,10 @@ foreach ($requests as $row) {
                                 }
                                 var actions = row.cells[4];
                                 if (actions && status === 'Under Review') actions.innerHTML = '<button type="button" onclick="openReviewModal(' + Number(enrollmentId) + ')" class="px-2.5 py-1.5 rounded-md text-xs font-semibold bg-brand-primary text-white">Evaluate Load</button> <button type="button" onclick="openRejectModal(' + Number(enrollmentId) + ')" class="px-2.5 py-1.5 rounded-md text-xs font-semibold border border-red-200 text-red-600 bg-white">Reject</button>';
-                                else if (actions && status === 'Approved') actions.textContent = 'Approved';
+                                else if (actions && status === 'Approved') actions.innerHTML = '<form method="post" class="inline" onsubmit="return confirm(\'Confirm this student as enrolled?\');"><input type="hidden" name="csrf_token" value="' + escapeHtml(enrollmentCsrfToken) + '"><input type="hidden" name="enrollment_id" value="' + Number(enrollmentId) + '"><input type="hidden" name="new_status" value="Enrolled"><button type="submit" class="px-2.5 py-1.5 rounded-md text-xs font-semibold bg-emerald-700 text-white hover:bg-emerald-800">Confirm Enrolled</button></form>';
                                 else if (actions && status === 'Rejected') actions.textContent = 'Rejected';
-                                else if (actions && status === 'Enrolled') actions.textContent = 'Enrolled';
+                                else if (actions && status === 'Cancelled') actions.textContent = 'Cancelled';
+                                else if (actions && status === 'Enrolled') row.remove();
                             }
                             closeReviewModal();
                             closeRejectModal();

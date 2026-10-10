@@ -47,7 +47,7 @@ final class EnrollmentService
     }
 
     /** Validate and apply a registrar review decision. */
-    public function reviewRequest(int $reviewerId, array $input): void
+    public function reviewRequest(int $reviewerId, array $input): array
     {
         $requestId = $this->positiveInteger($input['enrollment_id'] ?? null);
         $status = $input['new_status'] ?? '';
@@ -56,7 +56,7 @@ final class EnrollmentService
             throw new DomainException('The review submission is invalid.');
         }
 
-        $this->enrollment->reviewRequest($requestId, $reviewerId, $status, trim($reason));
+        return $this->enrollment->reviewRequest($requestId, $reviewerId, $status, trim($reason));
     }
 
     /** Validate and save the Registrar's adjusted final subject selection. */

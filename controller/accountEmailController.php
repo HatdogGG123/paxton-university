@@ -18,9 +18,15 @@ if (!is_string($token) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSI
 
 $userId = filter_var($_POST['user_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
+
 try {
-    if (!$userId || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 120) throw new DomainException('Choose an account and enter a valid email address.');
+
+    if (!$userId || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 120) {
+        throw new DomainException('Choose an account and enter a valid email address.');
+    }
+
     (new User(Database::getConnection()))->updateAccountEmail((int) $userId, $email);
+
     $_SESSION['account_email_notice'] = ['type' => 'success', 'message' => 'Account email saved. This address can now be used for Login and Forgot Password.'];
 } catch (DomainException $exception) {
     $_SESSION['account_email_notice'] = ['type' => 'error', 'message' => $exception->getMessage()];
@@ -28,4 +34,5 @@ try {
     error_log('SSIS account email update failed: ' . $exception->getMessage());
     $_SESSION['account_email_notice'] = ['type' => 'error', 'message' => 'The account email could not be updated.'];
 }
+
 header('Location: ' . ssis_app_base_path() . '/php/admin/userManagement.php#account-email');

@@ -94,8 +94,8 @@ final class Grades
     /** Return grades awaiting Registrar approval, scoped by each student's department and section. */
     public function getRegistrarGradeQueue(): array
     {
-        return $this->db->query("SELECT grade.id AS grade_id, grade.grade, grade.grade_status, grade.review_message, subject.code AS subject_code, subject.name AS subject_name,
-                department.name AS department_name, section.code AS section_code, term.academic_year, term.semester,
+        return $this->db->query("SELECT grade.id AS grade_id, grade.grade, grade.grade_status, grade.review_message, subject.id AS subject_id, subject.code AS subject_code, subject.name AS subject_name,
+                department.id AS department_id, department.name AS department_name, section.id AS section_id, section.code AS section_code, term.academic_year, term.semester,
                 student.student_no, CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
                 encoder.full_name AS entered_by_name
             FROM grades grade

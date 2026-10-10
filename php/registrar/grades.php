@@ -5,6 +5,19 @@ require_once __DIR__ . '/../../models/Grades.php';
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $queue = (new Grades(Database::getConnection()))->getRegistrarGradeQueue();
 $esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$gradeDepartments = [];
+$gradeSections = [];
+$gradeSubjects = [];
+foreach ($queue as $row) {
+    $gradeDepartments[(int) $row['department_id']] = $row['department_name'];
+    $sectionKey = (int) $row['department_id'] . ':' . (int) $row['section_id'];
+    $gradeSections[$sectionKey] = ['id' => (int) $row['section_id'], 'department_id' => (int) $row['department_id'], 'code' => $row['section_code']];
+    $subjectKey = (int) $row['subject_id'];
+    if (!isset($gradeSubjects[$subjectKey])) {
+        $gradeSubjects[$subjectKey] = ['id' => $subjectKey, 'department_id' => (int) $row['department_id'], 'section_ids' => [], 'code' => $row['subject_code'], 'name' => $row['subject_name']];
+    }
+    $gradeSubjects[$subjectKey]['section_ids'][] = (int) $row['section_id'];
+}
 $pageTitle = 'Registrar Grade Review | Paxton University';
 ?>
 <!doctype html><html lang="en"><?php include __DIR__ . '/../includes/head.php'; ?>
@@ -20,6 +33,11 @@ $pageTitle = 'Registrar Grade Review | Paxton University';
         <div class="flex flex-col gap-1 border-b border-gray-100 px-5 py-4 sm:px-6">
             <h2 class="text-lg font-bold">Grades awaiting approval</h2>
             <p class="text-sm text-gray-500">Review the student and class details, then approve or return each grade.</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                <label class="text-xs font-semibold text-gray-700">Academic department<select id="grade-filter-department" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"><option value="">All departments</option><?php foreach ($gradeDepartments as $id => $name): ?><option value="<?= (int) $id ?>"><?= $esc($name) ?></option><?php endforeach; ?></select></label>
+                <label class="text-xs font-semibold text-gray-700">Section<select id="grade-filter-section" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"><option value="">All sections</option></select></label>
+                <label class="text-xs font-semibold text-gray-700">Subject<select id="grade-filter-subject" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"><option value="">All subjects</option></select></label>
+            </div>
         </div>
         <div class="hidden overflow-x-auto lg:block">
             <table id="registrar-grade-queue-table" class="w-full min-w-[980px] text-left text-sm">
@@ -35,7 +53,7 @@ $pageTitle = 'Registrar Grade Review | Paxton University';
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     <?php foreach ($queue as $row): ?>
-                    <tr data-grade-row data-grade-id="<?= (int) $row['grade_id'] ?>" class="align-top hover:bg-gray-50/70">
+                    <tr data-grade-row data-grade-id="<?= (int) $row['grade_id'] ?>" data-department-id="<?= (int) $row['department_id'] ?>" data-section-id="<?= (int) $row['section_id'] ?>" data-subject-id="<?= (int) $row['subject_id'] ?>" class="align-top hover:bg-gray-50/70">
                         <td class="px-5 py-4"><p class="font-semibold text-gray-800"><?= $esc($row['student_name']) ?></p><p class="mt-1 text-xs text-gray-500"><?= $esc($row['student_no']) ?></p></td>
                         <td class="px-5 py-4"><p class="font-semibold text-brand-primary"><?= $esc($row['subject_code']) ?></p><p class="mt-1 text-xs text-gray-600"><?= $esc($row['subject_name']) ?></p><p class="mt-1 text-xs text-gray-400"><?= $esc($row['department_name']) ?> · Section <?= $esc($row['section_code']) ?></p></td>
                         <td class="whitespace-nowrap px-5 py-4 text-gray-600"><p><?= $esc($row['semester']) ?></p><p class="mt-1 text-xs text-gray-400">AY <?= $esc($row['academic_year']) ?></p></td>
@@ -62,7 +80,7 @@ $pageTitle = 'Registrar Grade Review | Paxton University';
         </div>
         <div class="space-y-4 p-4 lg:hidden">
             <?php foreach ($queue as $row): ?>
-            <article data-grade-row data-grade-id="<?= (int) $row['grade_id'] ?>" class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <article data-grade-row data-grade-id="<?= (int) $row['grade_id'] ?>" data-department-id="<?= (int) $row['department_id'] ?>" data-section-id="<?= (int) $row['section_id'] ?>" data-subject-id="<?= (int) $row['subject_id'] ?>" class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <div class="flex flex-wrap items-center gap-2"><h3 class="text-base font-bold text-gray-800"><?= $esc($row['student_name']) ?></h3><span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600"><?= $esc($row['student_no']) ?></span></div>
@@ -87,10 +105,64 @@ $pageTitle = 'Registrar Grade Review | Paxton University';
             </article>
             <?php endforeach; ?>
         </div>
-        <div id="grade-queue-empty" class="<?= $queue ? 'hidden ' : '' ?>flex min-h-56 flex-col items-center justify-center px-6 py-12 text-center"><h2 class="font-semibold">No grades to review</h2><p class="mt-1 text-sm text-gray-500">Grades submitted by departments will appear in this queue.</p></div>
+        <div id="grade-queue-empty" class="<?= $queue ? 'hidden ' : '' ?>flex min-h-56 flex-col items-center justify-center px-6 py-12 text-center"><h2 id="grade-queue-empty-title" class="font-semibold">No grades to review</h2><p id="grade-queue-empty-message" class="mt-1 text-sm text-gray-500">Grades submitted by departments will appear in this queue.</p></div>
     </section>
 </main>
 <script>
+const gradeSectionOptions = <?= json_encode(array_values($gradeSections), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+const gradeSubjectOptions = <?= json_encode(array_values($gradeSubjects), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+const gradeFilterDepartment = document.getElementById('grade-filter-department');
+const gradeFilterSection = document.getElementById('grade-filter-section');
+const gradeFilterSubject = document.getElementById('grade-filter-subject');
+
+function refreshGradeQueueFilters() {
+    const departmentId = gradeFilterDepartment.value;
+    const previousSection = gradeFilterSection.value;
+    gradeFilterSection.innerHTML = '<option value="">All sections</option>';
+    gradeSectionOptions.filter(item => !departmentId || String(item.department_id) === departmentId).forEach(item => {
+        gradeFilterSection.add(new Option(item.code, String(item.id)));
+    });
+    if ([...gradeFilterSection.options].some(option => option.value === previousSection)) gradeFilterSection.value = previousSection;
+
+    const sectionId = gradeFilterSection.value;
+    const previousSubject = gradeFilterSubject.value;
+    gradeFilterSubject.innerHTML = '<option value="">All subjects</option>';
+    gradeSubjectOptions.filter(item => (!departmentId || String(item.department_id) === departmentId)
+        && (!sectionId || item.section_ids.map(String).includes(sectionId))).forEach(item => {
+        gradeFilterSubject.add(new Option(item.code + ' · ' + item.name, String(item.id)));
+    });
+    if ([...gradeFilterSubject.options].some(option => option.value === previousSubject)) gradeFilterSubject.value = previousSubject;
+
+    const subjectId = gradeFilterSubject.value;
+    document.querySelectorAll('[data-grade-row]').forEach(row => {
+        const matches = (!departmentId || row.dataset.departmentId === departmentId)
+            && (!sectionId || row.dataset.sectionId === sectionId)
+            && (!subjectId || row.dataset.subjectId === subjectId);
+        row.classList.toggle('hidden', !matches);
+    });
+    const matchingIds = new Set(Array.from(document.querySelectorAll('[data-grade-row]:not(.hidden)')).map(row => row.dataset.gradeId));
+    document.getElementById('grade-queue-count').textContent = matchingIds.size;
+    const empty = matchingIds.size === 0;
+    document.getElementById('grade-queue-empty').classList.toggle('hidden', !empty);
+    document.getElementById('grade-queue-empty-title').textContent = empty && document.querySelectorAll('[data-grade-row]').length
+        ? 'No grades match these filters' : 'No grades to review';
+    document.getElementById('grade-queue-empty-message').textContent = empty && document.querySelectorAll('[data-grade-row]').length
+        ? 'Choose a different department, section, or subject to see other grades.' : 'Grades submitted by departments will appear in this queue.';
+    window.refreshLocalTables?.();
+}
+
+gradeFilterDepartment.addEventListener('change', () => {
+    gradeFilterSection.value = '';
+    gradeFilterSubject.value = '';
+    refreshGradeQueueFilters();
+});
+gradeFilterSection.addEventListener('change', () => {
+    gradeFilterSubject.value = '';
+    refreshGradeQueueFilters();
+});
+gradeFilterSubject.addEventListener('change', () => refreshGradeQueueFilters());
+refreshGradeQueueFilters();
+
 $(document).on('submit', 'form[data-page-ajax]', function(event) {
     event.preventDefault();
     const form = this;
@@ -107,10 +179,7 @@ $(document).on('submit', 'form[data-page-ajax]', function(event) {
             const gradeId = $(form).find('[name="grade_id"]').val();
             const $rows = $('[data-grade-row][data-grade-id="' + gradeId + '"]');
             $rows.remove();
-            const remaining = Math.max(0, Number($('#grade-queue-count').text()) - $rows.length);
-            $('#grade-queue-count').text(remaining);
-            if (!$('[data-grade-row]').length) $('#grade-queue-empty').removeClass('hidden');
-            window.refreshLocalTables?.();
+            refreshGradeQueueFilters();
         })
         .fail(function(xhr) {
             showToast('error', xhr.responseJSON?.message || 'The grade update failed. Please try again.');

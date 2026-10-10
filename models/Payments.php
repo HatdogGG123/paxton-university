@@ -21,7 +21,7 @@ final class Payments
              INNER JOIN document_types type ON type.id = request.document_type_id
              INNER JOIN students student ON student.id = request.student_id
              INNER JOIN programs program ON program.id = student.program_id
-             ORDER BY FIELD(payment.status, \'Pending Verification\', \'Unpaid\', \'Rejected\', \'Paid\', \'Refunded\'), payment.updated_at DESC'
+             ORDER BY request.created_at ASC, request.id ASC'
         )->fetchAll();
     }
 
@@ -37,7 +37,7 @@ final class Payments
              INNER JOIN document_types type ON type.id = request.document_type_id
              INNER JOIN students student ON student.id = request.student_id
              WHERE request.status = 'For Payment' AND payment.status IN ('Unpaid','Rejected')
-             ORDER BY request.created_at"
+             ORDER BY request.created_at ASC, request.id ASC"
         )->fetchAll();
     }
 

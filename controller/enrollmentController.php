@@ -44,19 +44,21 @@ try {
     }
 
     $action = (string) ($_POST['action'] ?? 'review');
+    $result = null;
     if ($action === 'approve_and_update') {
         $service->updateReviewedSubjects($userId, $_POST);
-        $service->reviewRequest($userId, $_POST + ['new_status' => 'Approved']);
+        $result = $service->reviewRequest($userId, $_POST + ['new_status' => 'Approved']);
         $message = 'The subject load was saved and the enrollment request was approved.';
     } elseif ($action === 'update_subjects') {
         $service->updateReviewedSubjects($userId, $_POST);
         $message = 'The subject list was updated and the student was notified.';
     } else {
-        $service->reviewRequest($userId, $_POST);
-        $message = 'Enrollment request updated and the student was notified.';
+        $result = $service->reviewRequest($userId, $_POST);
+        $message = $result['message'];
     }
+    if ($result && $result['status'] === 'Cancelled') $message = $result['message'];
     $_SESSION['registrar_enrollment_notice'] = ['type' => 'success', 'message' => $message];
-    echo json_encode(['status' => 'success', 'message' => $message, 'data' => ['redirect' => 'enrollment.php']]);
+    echo json_encode(['status' => 'success', 'message' => $message, 'data' => ['redirect' => 'enrollment.php', 'status' => $result['status'] ?? null]]);
 } catch (DomainException $exception) {
     http_response_code(422);
     echo json_encode(['status' => 'error', 'message' => $exception->getMessage()]);

@@ -77,7 +77,7 @@ unset($_SESSION['application_error']);
                             <label class="text-xs font-semibold">Middle name (optional)<input name="middle_name" maxlength="60" class="mt-1 w-full rounded-md border border-brand-primary/20 px-3 py-2.5 text-sm" /></label>
                             <label class="text-xs font-semibold">Last name<input required name="last_name" maxlength="60" class="mt-1 w-full rounded-md border border-brand-primary/20 px-3 py-2.5 text-sm" /></label>
                             <label class="text-xs font-semibold">Email<input required type="email" name="email" maxlength="120" class="mt-1 w-full rounded-md border border-brand-primary/20 px-3 py-2.5 text-sm" /></label>
-                            <label class="text-xs font-semibold">Contact number<input required name="contact_number" maxlength="20" class="mt-1 w-full rounded-md border border-brand-primary/20 px-3 py-2.5 text-sm" /></label>
+                            <label class="text-xs font-semibold">Contact number<input required type="tel" inputmode="numeric" name="contact_number" minlength="11" maxlength="11" pattern="[0-9]{11}" title="Enter exactly 11 digits using numbers only." class="mt-1 w-full rounded-md border border-brand-primary/20 px-3 py-2.5 text-sm" /></label>
                             <label class="text-xs font-semibold">Program<select required name="program_id" class="mt-1 w-full rounded-md border border-brand-primary/20 px-3 py-2.5 text-sm bg-white">
                                     <option value="">Select a program</option><?php foreach ($programs as $program): ?><option value="<?= (int) $program['id'] ?>"><?= htmlspecialchars($program['name'] . ' (' . $program['code'] . ')', ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?>
                                 </select></label>
@@ -90,6 +90,12 @@ unset($_SESSION['application_error']);
     <footer class="relative z-10 text-center text-xs text-brand-accent/70 py-6">Paxton University Student Services Information System</footer>
     <script src="js/helperFunction.js"></script>
     <script>
+        const contactNumberInput = document.querySelector('#application-form [name="contact_number"]');
+        contactNumberInput?.addEventListener('input', function() {
+            this.setCustomValidity(this.value !== '' && !/^\d{11}$/.test(this.value)
+                ? 'Contact number must contain exactly 11 digits using numbers only.'
+                : '');
+        });
         $('#application-form').on('submit', function(event) {
             event.preventDefault();
             const form = this;

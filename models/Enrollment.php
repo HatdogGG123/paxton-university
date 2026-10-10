@@ -1,10 +1,11 @@
 <?php
+
 /** Database operations for student enrollment submissions and registrar review. */
 final class Enrollment
 {
-    public function __construct(private PDO $db)
-    {
-    }
+    private const SECTION_CAPACITY = 50;
+
+    public function __construct(private PDO $db) {}
 
     /** Return the academic profile linked to a user account. */
     public function getStudentContext(int $userId): ?array
@@ -70,13 +71,14 @@ final class Enrollment
     public function getLatestStudentRequest(int $studentId, int $termId): ?array
     {
         $statement = $this->db->prepare(
-            'SELECT e.id, e.enrollment_no, e.term_id, e.year_level, e.status,
+            'SELECT e.id, e.enrollment_no, e.term_id, e.year_level, e.status, section.code AS section_code,
                     e.rejection_reason, e.submitted_at, e.reviewed_at,
                     COALESCE(u.full_name, CONCAT_WS(\' \', s.first_name, s.middle_name, s.last_name)) AS student_name,
                     s.student_no, p.name AS program_name
              FROM enrollments e
              INNER JOIN students s ON s.id = e.student_id
              INNER JOIN programs p ON p.id = s.program_id
+             LEFT JOIN sections section ON section.id = e.section_id
              LEFT JOIN users u ON u.id = s.user_id
              WHERE e.student_id = :student_id AND e.term_id = :term_id
              ORDER BY e.submitted_at DESC, e.id DESC LIMIT 1'
@@ -88,7 +90,7 @@ final class Enrollment
         }
 
         $request['subjects'] = $this->getEnrollmentSubjects((int) $request['id']);
-        $request['total_units'] = array_sum(array_map(static fn (array $subject): float => (float) $subject['units'], $request['subjects']));
+        $request['total_units'] = array_sum(array_map(static fn(array $subject): float => (float) $subject['units'], $request['subjects']));
 
         return $request;
     }
@@ -109,7 +111,7 @@ final class Enrollment
     {
         $enrollmentIds = array_values(array_unique(array_filter(
             array_map('intval', $enrollmentIds),
-            static fn (int $id): bool => $id > 0
+            static fn(int $id): bool => $id > 0
         )));
         if ($enrollmentIds === []) {
             return [];
@@ -139,7 +141,7 @@ final class Enrollment
     {
         $enrollmentIds = array_values(array_unique(array_filter(
             array_map('intval', $enrollmentIds),
-            static fn (int $id): bool => $id > 0
+            static fn(int $id): bool => $id > 0
         )));
         if ($enrollmentIds === []) {
             return [];
@@ -214,6 +216,10 @@ final class Enrollment
                 throw new DomainException('You already have an active enrollment request for this term.');
             }
 
+            if ($this->findAvailableSectionId((int) $student['program_id'], $yearLevel, (int) $term['id']) === null) {
+                throw new DomainException('Your enrollment request cannot be submitted because all sections for your program and year are full. Please contact the Registrar.');
+            }
+
             $placeholders = implode(',', array_fill(0, count($subjectIds), '?'));
             $subjectsQuery = $this->db->prepare(
                 "SELECT id, code, units FROM subjects
@@ -221,14 +227,16 @@ final class Enrollment
                    AND semester = ? AND is_active = 1"
             );
             $subjectsQuery->execute(array_merge($subjectIds, [
-                (int) $student['program_id'], $yearLevel, $term['semester'],
+                (int) $student['program_id'],
+                $yearLevel,
+                $term['semester'],
             ]));
             $subjects = $subjectsQuery->fetchAll();
             if (count($subjects) !== count($subjectIds)) {
                 throw new DomainException('One or more selected subjects are not available for your program, year level, or current term. Refresh the page and try again.');
             }
 
-            $totalUnits = array_sum(array_map(static fn (array $subject): float => (float) $subject['units'], $subjects));
+            $totalUnits = array_sum(array_map(static fn(array $subject): float => (float) $subject['units'], $subjects));
             $unitLimit = $this->getUnitLimit();
             if ($totalUnits > $unitLimit) {
                 throw new DomainException('Your selected subjects total ' . number_format($totalUnits, 1) . ' units. The current limit is ' . $unitLimit . ' units.');
@@ -273,8 +281,10 @@ final class Enrollment
 
             $studentDetails = $this->getStudentContext($userId);
             $name = trim(implode(' ', array_filter([
-                $studentDetails['first_name'], $studentDetails['middle_name'], $studentDetails['last_name'],
-            ], static fn ($part): bool => $part !== null && $part !== '')));
+                $studentDetails['first_name'],
+                $studentDetails['middle_name'],
+                $studentDetails['last_name'],
+            ], static fn($part): bool => $part !== null && $part !== '')));
             $this->notifyRole('Registrar', 'Enrollment request submitted', $name . ' submitted enrollment request ' . $enrollmentNo . '.');
             $this->writeAudit($userId, 'ENROLLMENT_SUBMITTED', 'Enrollment request ' . $enrollmentNo . ' submitted.');
             $this->db->commit();
@@ -352,13 +362,15 @@ final class Enrollment
                    AND semester = ? AND is_active = 1"
             );
             $subjectsQuery->execute(array_merge($subjectIds, [
-                (int) $request['program_id'], (int) $request['year_level'], $semester,
+                (int) $request['program_id'],
+                (int) $request['year_level'],
+                $semester,
             ]));
             $subjects = $subjectsQuery->fetchAll();
             if (count($subjects) !== count($subjectIds)) {
                 throw new DomainException('One or more selected subjects are not valid for this student and term.');
             }
-            $totalUnits = array_sum(array_map(static fn (array $subject): float => (float) $subject['units'], $subjects));
+            $totalUnits = array_sum(array_map(static fn(array $subject): float => (float) $subject['units'], $subjects));
             $unitLimit = $this->getUnitLimit();
             if ($totalUnits > $unitLimit) {
                 throw new DomainException('The final subject load exceeds the ' . $unitLimit . ' unit limit.');
@@ -417,16 +429,15 @@ final class Enrollment
         $sql .= ' GROUP BY e.id, e.enrollment_no, e.year_level, e.status, e.rejection_reason,
                            e.submitted_at, e.reviewed_at, s.student_no, s.user_id,
                            s.first_name, s.middle_name, s.last_name, p.name
-                  ORDER BY FIELD(e.status, \'Pending\', \'Under Review\', \'Approved\', \'Rejected\', \'Enrolled\', \'Cancelled\'),
-                           e.submitted_at ASC';
+                  ORDER BY e.submitted_at ASC, e.id ASC';
         $statement = $this->db->prepare($sql);
         $statement->execute($parameters);
         $requests = $statement->fetchAll();
-        $requestIds = array_map(static fn (array $request): int => (int) $request['id'], $requests);
+        $requestIds = array_map(static fn(array $request): int => (int) $request['id'], $requests);
         $subjectsByRequest = $this->getEnrollmentSubjectsForRequests($requestIds);
         $underReviewIds = array_map(
-            static fn (array $request): int => (int) $request['id'],
-            array_filter($requests, static fn (array $request): bool => $request['status'] === 'Under Review')
+            static fn(array $request): int => (int) $request['id'],
+            array_filter($requests, static fn(array $request): bool => $request['status'] === 'Under Review')
         );
         $eligibleByRequest = $this->getEligibleSubjectsForRequests($underReviewIds);
         foreach ($requests as &$request) {
@@ -440,7 +451,7 @@ final class Enrollment
     }
 
     /** Apply an allowed Registrar status transition and notify the student. */
-    public function reviewRequest(int $enrollmentId, int $reviewerId, string $newStatus, string $reason = ''): void
+    public function reviewRequest(int $enrollmentId, int $reviewerId, string $newStatus, string $reason = ''): array
     {
         $this->db->beginTransaction();
         try {
@@ -449,7 +460,7 @@ final class Enrollment
                 throw new DomainException('There is no active enrollment term to review.');
             }
             $select = $this->db->prepare(
-                'SELECT e.status, e.enrollment_no, s.user_id
+                'SELECT e.status, e.enrollment_no, e.year_level, s.user_id, s.program_id
                  FROM enrollments e INNER JOIN students s ON s.id = e.student_id
                  WHERE e.id = :enrollment_id AND e.term_id = :term_id FOR UPDATE'
             );
@@ -465,6 +476,7 @@ final class Enrollment
                 'Approved' => ['Under Review'],
                 'Rejected' => ['Pending', 'Under Review'],
                 'Enrolled' => ['Approved'],
+                'Cancelled' => ['Approved'],
             ];
             if (!isset($allowed[$newStatus]) || !in_array($current, $allowed[$newStatus], true)) {
                 throw new DomainException('That action is not available for the current request status. Refresh the page and try again.');
@@ -473,16 +485,26 @@ final class Enrollment
                 throw new DomainException('Enter a rejection reason of no more than 500 characters.');
             }
 
+            $sectionId = null;
+            if ($newStatus === 'Enrolled') {
+                $sectionId = $this->findAvailableSectionId((int) $request['program_id'], (int) $request['year_level'], $currentTermId);
+                if ($sectionId === null) {
+                    $newStatus = 'Cancelled';
+                    $reason = 'Enrollment cancelled because all sections for this program and year have reached the 50-student capacity.';
+                }
+            }
+
             $update = $this->db->prepare(
                 'UPDATE enrollments
-                 SET status = :status, rejection_reason = :reason, reviewed_by = :reviewed_by,
+                 SET status = :status, section_id = :section_id, rejection_reason = :reason, reviewed_by = :reviewed_by,
                      reviewed_at = CURRENT_TIMESTAMP,
                      enrolled_at = CASE WHEN :is_enrolled = 1 THEN CURRENT_TIMESTAMP ELSE enrolled_at END
                  WHERE id = :enrollment_id'
             );
             $update->execute([
                 'status' => $newStatus,
-                'reason' => $newStatus === 'Rejected' ? trim($reason) : null,
+                'section_id' => $sectionId,
+                'reason' => in_array($newStatus, ['Rejected', 'Cancelled'], true) ? trim($reason) : null,
                 'reviewed_by' => $reviewerId,
                 'is_enrolled' => $newStatus === 'Enrolled' ? 1 : 0,
                 'enrollment_id' => $enrollmentId,
@@ -493,6 +515,7 @@ final class Enrollment
                 'Approved' => 'Your enrollment request ' . $request['enrollment_no'] . ' was approved. The Registrar will confirm your final enrollment.',
                 'Rejected' => 'Your enrollment request ' . $request['enrollment_no'] . ' was rejected: ' . trim($reason),
                 'Enrolled' => 'Your enrollment request ' . $request['enrollment_no'] . ' is confirmed as enrolled.',
+                'Cancelled' => 'Your enrollment request ' . $request['enrollment_no'] . ' was cancelled. ' . trim($reason),
             };
             $notification = $this->db->prepare(
                 "INSERT INTO notifications (user_id, category, title, message)
@@ -505,12 +528,45 @@ final class Enrollment
             ]);
             $this->writeAudit($reviewerId, 'ENROLLMENT_STATUS_CHANGED', $request['enrollment_no'] . ' changed from ' . $current . ' to ' . $newStatus . '.');
             $this->db->commit();
+            return [
+                'status' => $newStatus,
+                'message' => $newStatus === 'Cancelled'
+                    ? 'Enrollment was cancelled because no section has space available. The student was notified.'
+                    : 'Enrollment request updated and the student was notified.',
+            ];
         } catch (Throwable $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             throw $exception;
         }
+    }
+
+    /** Lock matching sections and return the first one with a free seat. */
+    private function findAvailableSectionId(int $programId, int $yearLevel, int $termId): ?int
+    {
+        $sectionsQuery = $this->db->prepare(
+            'SELECT id FROM sections
+             WHERE program_id = :program_id AND year_level = :year_level AND is_active = 1
+             ORDER BY code, id FOR UPDATE'
+        );
+        $sectionsQuery->execute(['program_id' => $programId, 'year_level' => $yearLevel]);
+        $sections = $sectionsQuery->fetchAll(PDO::FETCH_COLUMN);
+        if (!$sections) {
+            return null;
+        }
+
+        $countQuery = $this->db->prepare(
+            "SELECT COUNT(*) FROM enrollments
+             WHERE section_id = :section_id AND term_id = :term_id AND status = 'Enrolled'"
+        );
+        foreach ($sections as $sectionId) {
+            $countQuery->execute(['section_id' => (int) $sectionId, 'term_id' => $termId]);
+            if ((int) $countQuery->fetchColumn() < self::SECTION_CAPACITY) {
+                return (int) $sectionId;
+            }
+        }
+        return null;
     }
 
     /** Return unmet prerequisite codes for selected subjects. */

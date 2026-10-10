@@ -29,6 +29,10 @@ final class AdmissionService
             throw new DomainException('Complete all applicant details with a valid email and program.');
         }
 
+        if (!preg_match('/^[0-9]{11}$/', $data['contact_number'])) {
+            throw new DomainException('Contact number must contain exactly 11 digits using numbers only.');
+        }
+
         if ($this->admission->emailInUse($data['email'])) {
             throw new DomainException('This email is already associated with an account or application. Use another email address or sign in to your existing account.');
         }
