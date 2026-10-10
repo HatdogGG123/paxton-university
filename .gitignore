@@ -1,0 +1,2 @@
+# Host-specific mail credentials
+/config/mail.local.php

@@ -52,7 +52,7 @@ final class User
             }
         }
 
-        if ($attemptState['locked'] && !$credentialsValid) {
+        if ($attemptState['locked']) {
             // Count wrong attempts in this session even if another session had already
             // locked the account-specific counter.
             if (!$sessionAttemptState['locked']) {
@@ -62,6 +62,7 @@ final class User
             $this->lastLoginFailureMessage = AuthAttemptLimiter::message('Login', $attemptState, $limiter->maxFailures());
             $this->lastLoginFailureState = $attemptState;
             $this->recordLoginAttempt($identifier, false, $user ? (int) $user['id'] : null);
+            $this->recordLoginLockout($user ? (int) $user['id'] : null, $identifier);
             throw new DomainException($this->lastLoginFailureMessage);
         }
 
@@ -87,6 +88,24 @@ final class User
         $user['must_change_password'] = (bool) $user['must_change_password'];
 
         return $user;
+    }
+
+    /** Record a reviewable security alert for administrators. */
+    private function recordLoginLockout(?int $userId, string $identifier): void
+    {
+        try {
+            $statement = $this->db->prepare(
+                "INSERT INTO audit_logs (user_id, action, entity, details, ip_address)
+                 VALUES (:user_id, 'LOGIN_LOCKOUT', 'Authentication', :details, :ip_address)"
+            );
+            $statement->execute([
+                'user_id' => $userId,
+                'details' => 'Login rejected during active lockout for identifier ' . substr($identifier, 0, 50) . '.',
+                'ip_address' => substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45),
+            ]);
+        } catch (Throwable $exception) {
+            error_log('SSIS login lockout alert failed: ' . $exception->getMessage());
+        }
     }
 
     public function getLastLoginFailureMessage(): string

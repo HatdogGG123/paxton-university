@@ -68,15 +68,15 @@ Before running the cases:
 
 | ID | Scenario and steps | Expected result |
 | --- | --- | --- |
-| PWD-01 | Enter a registered active account email and select Continue. | The account is found, password and confirmation fields appear, and `showToast()` confirms the email check. |
-| PWD-02 | Enter a malformed or unknown email. | No password fields appear; `showToast()` reports failure and remaining reset attempts. |
-| PWD-03 | Enter a password shorter than 8 characters or without both a letter and a number. | Password is not changed; `showToast()` explains the rule and remaining attempts decrease. |
-| PWD-04 | Enter a valid password but a mismatched confirmation. | Password is not changed and a toast reports the mismatch and attempts remaining. |
+| PWD-01 | Request a reset for a registered active account email. | A generic response is shown and a single-use link is sent through EmailJS; password fields only appear after following the link. |
+| PWD-02 | Request a reset for a malformed or unknown email. | Malformed addresses are rejected; unknown addresses receive the same generic success response as known addresses. |
+| PWD-03 | Open a valid reset link from a different IP address or after 30 minutes. | Reset is denied and the password remains unchanged. |
+| PWD-04 | Enter a valid reset token and a mismatched confirmation or weak password. | Password is not changed and the form explains the password rule or mismatch. |
 | PWD-05 | Use the show/hide password control. | Both new-password fields switch between masked and visible text; the controlâ€™s accessible pressed state changes. |
-| PWD-06 | After a successful email lookup, enter a valid new password twice and save. | Password hash changes, `must_change_password` clears, reset failures clear, success toast appears, and the new password works at Login while the old one fails. |
-| PWD-07 | Cause five failed reset attempts for one email. | Failures show decreasing counts; the fifth locks password reset for that email during the cooldown. Other emails remain unaffected. |
+| PWD-06 | Follow a valid link from the requesting IP and enter a valid new password twice. | Password hash changes, `must_change_password` clears, token is consumed, success toast appears, and the new password works at Login while the old one fails. |
+| PWD-07 | Request reset links repeatedly for one email or from one IP. | Requests are rate limited by both email and source IP during the configured cooldown. |
 | PWD-08 | Try a password reset for an inactive account or after the email on the account has changed. | Reset is denied and no password or account status changes. |
-| PWD-09 | Confirm the reset behavior after email lookup. | Current requested flow allows reset after confirming that the email exists; record the security limitation that it does not verify mailbox ownership. |
+| PWD-09 | Reuse a consumed token or alter its contents. | Reset is denied and the password remains unchanged; only a hash of the token is stored. |
 
 ## Enrollment
 

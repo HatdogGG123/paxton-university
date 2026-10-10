@@ -2,7 +2,8 @@
 require_once __DIR__ . '/php/includes/auth.php';
 ssis_start_session();
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-$resetVerified = !empty($_SESSION['password_reset_user_id']) && !empty($_SESSION['password_reset_email']);
+$resetToken = (string) ($_GET['token'] ?? '');
+$resetVerified = preg_match('/\\A[a-f0-9]{64}\\z/', $resetToken) === 1;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -14,21 +15,22 @@ $resetVerified = !empty($_SESSION['password_reset_user_id']) && !empty($_SESSION
         </div>
         <p class="text-xs font-bold uppercase tracking-widest text-brand-secondary">Paxton University SSIS</p>
         <h1 class="mt-2 text-2xl font-bold text-gray-900">Reset your password</h1>
-        <p class="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-gray-500">Enter the email address associated with your account. The system will check it before showing the new password fields.</p>
+        <p id="reset_intro" class="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-gray-500">Enter your account email and we’ll send a single-use reset link if it matches an active account.</p>
 
         <form id="email_check_form" class="mt-8 space-y-4 text-left"<?= $resetVerified ? ' hidden' : '' ?>>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
-            <input type="hidden" name="action" value="check_email">
+            <input type="hidden" name="action" value="request_reset">
             <label for="reset_email" class="block text-xs font-semibold uppercase tracking-wide text-gray-700">Account email</label>
             <input type="email" id="reset_email" name="email" required maxlength="120" autocomplete="email" placeholder="you@example.com" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-brand-secondary focus:ring-2 focus:ring-brand-secondary/20" <?= $resetVerified ? 'disabled' : '' ?>>
             <button id="check_email_button" class="w-full rounded-lg bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-secondary">Continue</button>
         </form>
 
         <section id="password_reset_section" class="mt-8 text-left<?= $resetVerified ? '' : ' hidden' ?>">
-            <p class="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Email found. Choose a new password for <strong id="verified_email"><?= $resetVerified ? htmlspecialchars((string) $_SESSION['password_reset_email'], ENT_QUOTES, 'UTF-8') : '' ?></strong>.</p>
+            <p class="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">This link is valid for 30 minutes and can be used once from the IP address that requested it.</p>
             <form id="password_reset_form" class="space-y-4">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="action" value="reset_password">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($resetToken, ENT_QUOTES, 'UTF-8') ?>">
                 <div><label for="new_password" class="mb-1 block text-xs font-semibold text-gray-700">New password</label><input type="password" id="new_password" name="new_password" required minlength="8" autocomplete="new-password" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-brand-secondary focus:ring-2 focus:ring-brand-secondary/20"></div>
                 <div><label for="confirm_password" class="mb-1 block text-xs font-semibold text-gray-700">Confirm new password</label><input type="password" id="confirm_password" name="confirm_password" required minlength="8" autocomplete="new-password" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-brand-secondary focus:ring-2 focus:ring-brand-secondary/20"></div>
                 <p class="text-xs text-gray-500">Use at least 8 characters, including a letter and a number.</p>
@@ -47,12 +49,9 @@ $resetVerified = !empty($_SESSION['password_reset_user_id']) && !empty($_SESSION
                 const button = $('#check_email_button');
                 button.prop('disabled', true).text('Checking email…');
                 $.post(endpoint, $(this).serialize(), null, 'json').done(function (response) {
-                    $('#verified_email').text($('#reset_email').val().trim());
                     $('#email_check_form').addClass('hidden');
-                    $('#password_reset_section').removeClass('hidden');
-                    $('#new_password').trigger('focus');
-                    const remaining = response.data && Number.isInteger(response.data.attempts_remaining) ? response.data.attempts_remaining : 5;
-                    showToast('success', response.message + ' ' + remaining + ' password reset attempts available.');
+                    $('#reset_intro').text(response.message);
+                    showToast('success', response.message);
                 }).fail(function (xhr) {
                     showToast('error', xhr.responseJSON?.message || 'The email could not be checked.');
                 }).always(function () {

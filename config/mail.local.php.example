@@ -1,0 +1,10 @@
+<?php
+// Copy to mail.local.php and fill in the settings from your EmailJS dashboard.
+// Never commit mail.local.php; its path is excluded by .gitignore.
+return [
+    'emailjs_public_key' => 'your_emailjs_public_key',
+    'emailjs_private_key' => 'your_emailjs_private_key',
+    'emailjs_service_id' => 'your_emailjs_service_id',
+    'emailjs_template_id' => 'your_emailjs_template_id',
+    'app_url' => 'http://localhost/ssis',
+];
