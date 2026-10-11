@@ -1,4 +1,5 @@
 <?php
+
 /** Shared session startup, access checks, and security headers for SSIS pages. */
 require_once __DIR__ . '/../../models/Database.php';
 
@@ -82,6 +83,7 @@ function ssis_require_role(string|array $allowedRoles): void
     try {
         $timeoutQuery = Database::getConnection()->query("SELECT setting_value FROM settings WHERE setting_key = 'session_timeout_minutes' LIMIT 1");
         $timeoutValue = $timeoutQuery->fetchColumn();
+
         if ($timeoutValue !== false && ctype_digit((string) $timeoutValue)) $sessionTimeoutMinutes = min(480, max(5, (int) $timeoutValue));
     } catch (Throwable $exception) {
         error_log('SSIS session timeout setting lookup failed: ' . $exception->getMessage());

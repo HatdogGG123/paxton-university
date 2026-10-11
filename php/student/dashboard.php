@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 ssis_require_role('student');
 require_once __DIR__ . '/../../models/StudentDashboard.php';
 require_once __DIR__ . '/../../models/Notifications.php';
+
 try {
     $studentDashboard = new StudentDashboard(Database::getConnection());
     $dashboard = $studentDashboard->getData((int) $_SESSION['user']['id']);
@@ -15,7 +16,7 @@ try {
     http_response_code(503);
     exit('Student information is temporarily unavailable. Please try again later.');
 }
-$esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 $student = $dashboard['profile'];
 $studentFullName = trim(implode(' ', array_filter([$student['first_name'], $student['middle_name'], $student['last_name']])));
 $termLabel = $dashboard['term'] ? $dashboard['term']['semester'] . ' ' . $dashboard['term']['academic_year'] : 'No current term';
@@ -67,7 +68,7 @@ $activeRequestCount = $dashboard['active_request_count'];
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Top Navigation Bar -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -103,10 +104,10 @@ $activeRequestCount = $dashboard['active_request_count'];
                     <!-- User Info / Profile -->
                     <div class="hidden lg:flex items-center space-x-2">
                         <div class="text-right">
-                        <p id="nav_student_name" class="text-xs font-semibold text-brand-dark"><?= $esc($studentFullName) ?></p>
-                        <p id="nav_student_id" class="text-[10px] text-gray-500"><?= $esc($student['student_no']) ?></p>
+                            <p id="nav_student_name" class="text-xs font-semibold text-brand-dark"><?= $esc($studentFullName) ?></p>
+                            <p id="nav_student_id" class="text-[10px] text-gray-500"><?= $esc($student['student_no']) ?></p>
                         </div>
-                        
+
                         <a href="logout.php" class="p-2 text-gray-400 hover:text-red-600 rounded-md hover:bg-gray-100 transition-colors" title="Log Out">
                             <i data-lucide="log-out" class="w-5 h-5"></i>
                         </a>
@@ -150,7 +151,7 @@ $activeRequestCount = $dashboard['active_request_count'];
         <section class="bg-white border border-gray-200 rounded-md p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div class="space-y-1">
                 <div class="flex items-center space-x-2">
-                    <h1 class="text-2xl font-bold text-brand-dark tracking-tight">Welcome back, <span id="header_student_firstname"><?= $esc($student['first_name']) ?></span>!</h1>
+                    <h1 class="text-2xl font-bold text-brand-dark tracking-tight">Welcome back, <span id="header_student_firstname"><?= strtoupper($esc($student['first_name'])) ?></span>!</h1>
                 </div>
                 <p class="text-sm text-gray-500">Here is your academic overview for the current academic term.</p>
             </div>
@@ -257,13 +258,15 @@ $activeRequestCount = $dashboard['active_request_count'];
                             </thead>
                             <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
                                 <?php foreach ($dashboard['grades'] as $grade): ?><tr class="hover:bg-gray-50/50 transition-colors">
-                                    <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $esc($grade['code']) ?></td>
-                                    <td class="py-3.5 px-5"><?= $esc($grade['name']) ?></td>
-                                    <td class="py-3.5 px-5 text-center"><?= number_format((float) $grade['units'], 1) ?></td>
-                                    <td class="py-3.5 px-5 text-center font-bold text-brand-dark"><?= $grade['grade'] === null ? '—' : number_format((float) $grade['grade'], 2) ?></td>
-                                    <td class="py-3.5 px-5 text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold <?= $grade['grade_status'] === 'Passed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' ?>"><?= $esc($grade['grade_status'] ?? 'Released') ?></span></td>
-                                </tr><?php endforeach; ?>
-                                <?php if (!$dashboard['grades']): ?><tr><td colspan="5" class="py-8 px-5 text-center text-gray-500">No grades have been released for this term.</td></tr><?php endif; ?>
+                                        <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $esc($grade['code']) ?></td>
+                                        <td class="py-3.5 px-5"><?= $esc($grade['name']) ?></td>
+                                        <td class="py-3.5 px-5 text-center"><?= number_format((float) $grade['units'], 1) ?></td>
+                                        <td class="py-3.5 px-5 text-center font-bold text-brand-dark"><?= $grade['grade'] === null ? '—' : number_format((float) $grade['grade'], 2) ?></td>
+                                        <td class="py-3.5 px-5 text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold <?= $grade['grade_status'] === 'Passed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' ?>"><?= $esc($grade['grade_status'] ?? 'Released') ?></span></td>
+                                    </tr><?php endforeach; ?>
+                                <?php if (!$dashboard['grades']): ?><tr>
+                                        <td colspan="5" class="py-8 px-5 text-center text-gray-500">No grades have been released for this term.</td>
+                                    </tr><?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -293,13 +296,15 @@ $activeRequestCount = $dashboard['active_request_count'];
                             </thead>
                             <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
                                 <?php foreach ($dashboard['requests'] as $request): ?><tr class="hover:bg-gray-50/50 transition-colors">
-                                    <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $esc($request['request_no']) ?></td>
-                                    <td class="py-3.5 px-5"><?= $esc($request['document_name']) ?></td>
-                                    <td class="py-3.5 px-5">₱<?= number_format((float) $request['fee_amount'], 2) ?></td>
-                                    <td class="py-3.5 px-5"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700"><?= $esc($request['payment_status'] ?: 'Unpaid') ?></span></td>
-                                    <td class="py-3.5 px-5 text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-teal-100 text-teal-800"><?= $esc($request['status']) ?></span></td>
-                                </tr><?php endforeach; ?>
-                                <?php if (!$dashboard['requests']): ?><tr><td colspan="5" class="py-8 px-5 text-center text-gray-500">No document requests yet.</td></tr><?php endif; ?>
+                                        <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $esc($request['request_no']) ?></td>
+                                        <td class="py-3.5 px-5"><?= $esc($request['document_name']) ?></td>
+                                        <td class="py-3.5 px-5">₱<?= number_format((float) $request['fee_amount'], 2) ?></td>
+                                        <td class="py-3.5 px-5"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700"><?= $esc($request['payment_status'] ?: 'Unpaid') ?></span></td>
+                                        <td class="py-3.5 px-5 text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-teal-100 text-teal-800"><?= $esc($request['status']) ?></span></td>
+                                    </tr><?php endforeach; ?>
+                                <?php if (!$dashboard['requests']): ?><tr>
+                                        <td colspan="5" class="py-8 px-5 text-center text-gray-500">No document requests yet.</td>
+                                    </tr><?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -326,10 +331,10 @@ $activeRequestCount = $dashboard['active_request_count'];
 
                     <div id="container_announcements" class="space-y-4">
                         <?php foreach ($announcements as $announcement): ?><div class="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
-                            <div class="flex items-center justify-between"><span class="text-[10px] uppercase font-bold text-brand-secondary bg-brand-accent/30 px-2 py-0.5 rounded-md">Campus</span><span class="text-[10px] text-gray-400"><?= $esc(date('M j, Y', strtotime($announcement['created_at']))) ?></span></div>
-                            <h3 class="text-sm font-bold text-brand-dark"><?= $esc($announcement['title']) ?></h3>
-                            <p class="text-xs text-gray-600 leading-relaxed"><?= nl2br($esc($announcement['body'])) ?></p>
-                        </div><?php endforeach; ?>
+                                <div class="flex items-center justify-between"><span class="text-[10px] uppercase font-bold text-brand-secondary bg-brand-accent/30 px-2 py-0.5 rounded-md">Campus</span><span class="text-[10px] text-gray-400"><?= $esc(date('M j, Y', strtotime($announcement['created_at']))) ?></span></div>
+                                <h3 class="text-sm font-bold text-brand-dark"><?= $esc($announcement['title']) ?></h3>
+                                <p class="text-xs text-gray-600 leading-relaxed"><?= nl2br($esc($announcement['body'])) ?></p>
+                            </div><?php endforeach; ?>
                         <?php if (!$announcements): ?><p class="text-xs text-gray-500">There are no current announcements.</p><?php endif; ?>
                     </div>
                 </div>
@@ -350,9 +355,14 @@ $activeRequestCount = $dashboard['active_request_count'];
 
                     <div id="container_notifications" class="space-y-3">
                         <?php foreach ($recentNotifications as $notification): ?><div class="flex items-start space-x-3 p-2.5 rounded-md hover:bg-gray-50 transition-colors border-l-2 <?= empty($notification['is_read']) ? 'border-blue-500 bg-blue-50/30' : 'border-gray-300 bg-white' ?>">
-                            <div class="shrink-0 mt-0.5"><div class="w-2 h-2 rounded-full <?= empty($notification['is_read']) ? 'bg-blue-500' : 'bg-gray-300' ?>"></div></div>
-                            <div class="space-y-0.5 flex-1"><p class="text-xs font-medium text-brand-dark"><?= $esc($notification['title']) ?>: <?= $esc($notification['message']) ?></p><p class="text-[10px] text-gray-400"><?= $esc(date('M j, Y g:i A', strtotime($notification['created_at']))) ?></p></div>
-                        </div><?php endforeach; ?>
+                                <div class="shrink-0 mt-0.5">
+                                    <div class="w-2 h-2 rounded-full <?= empty($notification['is_read']) ? 'bg-blue-500' : 'bg-gray-300' ?>"></div>
+                                </div>
+                                <div class="space-y-0.5 flex-1">
+                                    <p class="text-xs font-medium text-brand-dark"><?= $esc($notification['title']) ?>: <?= $esc($notification['message']) ?></p>
+                                    <p class="text-[10px] text-gray-400"><?= $esc(date('M j, Y g:i A', strtotime($notification['created_at']))) ?></p>
+                                </div>
+                            </div><?php endforeach; ?>
                         <?php if (!$recentNotifications): ?><p class="text-xs text-gray-500">You have no notifications yet.</p><?php endif; ?>
                     </div>
                 </div>
@@ -380,65 +390,82 @@ $activeRequestCount = $dashboard['active_request_count'];
         });
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>

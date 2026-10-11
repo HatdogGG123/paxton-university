@@ -1,8 +1,10 @@
 <?php
 require_once __DIR__ . '/php/includes/auth.php';
 require_once __DIR__ . '/models/Admission.php';
+
 ssis_start_session();
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
 $admissionModel = new Admission(Database::getConnection());
 $programs = $admissionModel->programs();
 $submittedNumber = is_string($_GET['submitted'] ?? null) ? trim($_GET['submitted']) : '';
@@ -20,6 +22,7 @@ if (is_array($credentials) && ($credentials['application_no'] ?? '') === $submit
 $error = $_SESSION['application_error'] ?? null;
 unset($_SESSION['application_error']);
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <?php include __DIR__ . '/php/includes/head.php'; ?>
@@ -82,7 +85,12 @@ unset($_SESSION['application_error']);
                                     <option value="">Select a program</option><?php foreach ($programs as $program): ?><option value="<?= (int) $program['id'] ?>"><?= htmlspecialchars($program['name'] . ' (' . $program['code'] . ')', ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?>
                                 </select></label>
                             <label class="text-xs font-semibold sm:col-span-2">Home address<input required name="address" maxlength="255" class="mt-1 w-full rounded-md border border-brand-primary/20 px-3 py-2.5 text-sm" /></label>
-                        </div><button class="w-full sm:w-auto bg-brand-primary hover:bg-brand-dark text-white font-semibold px-7 py-3 rounded-lg text-sm">Submit application</button>
+                        </div>
+                        <label for="privacy-consent" class="flex items-start gap-3 rounded-lg border border-brand-primary/20 bg-white/70 p-4 text-sm">
+                            <input id="privacy-consent" name="privacy_consent" value="1" type="checkbox" class="mt-1 size-4 shrink-0 accent-brand-primary">
+                            <span><strong class="block">Data Privacy Notice and Consent</strong>By submitting this application form, you acknowledge and agree that the system administrators will collect, record, process, store, and retain your personal information (including your name, contact details, and submitted credentials) solely for the purpose of processing, evaluating, and managing your application request. All data collected is handled with strict confidentiality in accordance with the Data Privacy Act of 2012, protected by secure technical safeguards, and accessible only to authorized personnel. Your submission serves as your free, explicit, and informed consent to the processing of your personal data for these specified operational purposes.</span>
+                        </label>
+                        <button type="submit" class="w-full sm:w-auto bg-brand-primary hover:bg-brand-dark text-white font-semibold px-7 py-3 rounded-lg text-sm">Submit application</button>
                     </form>
                 </section><?php endif; ?>
         </div>
@@ -92,23 +100,30 @@ unset($_SESSION['application_error']);
     <script>
         const contactNumberInput = document.querySelector('#application-form [name="contact_number"]');
         contactNumberInput?.addEventListener('input', function() {
-            this.setCustomValidity(this.value !== '' && !/^\d{11}$/.test(this.value)
-                ? 'Contact number must contain exactly 11 digits using numbers only.'
-                : '');
+            this.setCustomValidity(this.value !== '' && !/^\d{11}$/.test(this.value) ?
+                'Contact number must contain exactly 11 digits using numbers only.' :
+                '');
         });
         $('#application-form').on('submit', function(event) {
             event.preventDefault();
             const form = this;
             const button = form.querySelector('[type="submit"]');
             if (button?.disabled) return;
+            if (!form.querySelector('[name="privacy_consent"]')?.checked) {
+                showToast('error', 'Please review and accept the Data Privacy Notice and Consent before submitting.');
+                form.querySelector('[name="privacy_consent"]')?.focus();
+                return;
+            }
             if (button) button.disabled = true;
             $.ajax({
-                url: form.getAttribute('action'),
-                method: 'POST',
-                data: $(form).serialize(),
-                dataType: 'json',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
+                    url: form.getAttribute('action'),
+                    method: 'POST',
+                    data: $(form).serialize(),
+                    dataType: 'json',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
                 .done(function(result) {
                     if (!result || !result.application_no) {
                         showToast('error', result?.message || 'Your application could not be submitted.');
@@ -121,10 +136,13 @@ unset($_SESSION['application_error']);
                     $('#application-result').removeClass('hidden');
                 })
                 .fail(function(xhr, textStatus) {
-                    const message = xhr.responseJSON?.message || (xhr.status === 0
-                        ? 'Could not reach the admissions server. Check your connection and try again.'
-                        : 'The admissions server returned an unexpected response. Please try again.');
-                    console.error('Application submission failed', { status: xhr.status, textStatus: textStatus });
+                    const message = xhr.responseJSON?.message || (xhr.status === 0 ?
+                        'Could not reach the admissions server. Check your connection and try again.' :
+                        'The admissions server returned an unexpected response. Please try again.');
+                    console.error('Application submission failed', {
+                        status: xhr.status,
+                        textStatus: textStatus
+                    });
                     showToast('error', message);
                     if (button) button.disabled = false;
                 });

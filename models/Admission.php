@@ -249,8 +249,7 @@ final class Admission
             $this->db->prepare("INSERT INTO number_sequences (seq_type, seq_year, last_number) VALUES ('student_no', :year, 1) ON DUPLICATE KEY UPDATE last_number = last_number + 1")->execute(['year' => $year]);
             $numberQuery = $this->db->prepare("SELECT last_number FROM number_sequences WHERE seq_type = 'student_no' AND seq_year = :year FOR UPDATE");
             $numberQuery->execute(['year' => $year]);
-            $studentNo = sprintf('%04d%06d', $year, (int) $numberQuery->fetchColumn());
-            $studentNo = substr($studentNo, -10);
+            $studentNo = sprintf('%04d-%05d', $year, (int) $numberQuery->fetchColumn());
             $student = $this->db->prepare('INSERT INTO students (user_id, student_no, first_name, middle_name, last_name, email, contact_number, address, program_id, year_level, student_type, admission_term_id) VALUES (:user_id, :student_no, :first_name, :middle_name, :last_name, :email, :contact_number, :address, :program_id, 1, \'Regular\', (SELECT id FROM terms WHERE is_current = 1 LIMIT 1))');
             $student->execute(['user_id' => $userId, 'student_no' => $studentNo, 'first_name' => $app['first_name'], 'middle_name' => $app['middle_name'], 'last_name' => $app['last_name'], 'email' => $app['email'], 'contact_number' => $app['contact_number'], 'address' => $app['address'], 'program_id' => $app['program_id']]);
             $this->db->prepare("UPDATE users SET role = 'Student', username = :student_no WHERE id = :id")->execute(['student_no' => $studentNo, 'id' => $userId]);

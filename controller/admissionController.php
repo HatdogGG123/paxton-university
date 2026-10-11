@@ -33,6 +33,9 @@ try {
     $db = Database::getConnection();
     $model = new Admission($db);
     if ($action === 'submit_application') {
+        if (($_POST['privacy_consent'] ?? '') !== '1') {
+            throw new DomainException('Please review and accept the Data Privacy Notice and Consent before submitting.');
+        }
         $credentials = (new AdmissionService($model))->submit($_POST);
         $_SESSION['applicant_credentials'] = $credentials;
         $user = (new User($db))->authenticate($credentials['application_no'], $credentials['password']);

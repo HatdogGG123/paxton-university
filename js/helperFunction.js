@@ -1,12 +1,4 @@
-/**
- * Displays a responsive, auto-dismissing toast notification.
- * Mobile: Top Center | Desktop: Top Right
- *
- * @param {string} type - 'success', 'error', 'warning', or 'info'
- * @param {string} message - The text message to display
- */
 function showToast(type, message, duration = 3000) {
-  // 1. Ensure container exists in DOM with responsive positioning classes
   let $container = $("#toast_container");
   if ($container.length === 0) {
     $("body").append(`
@@ -47,7 +39,6 @@ function showToast(type, message, duration = 3000) {
       break;
   }
 
-  // 3. Construct Toast HTML Element
   const toastId = "toast_" + Date.now();
   const toastHtml = `
         <div id="${toastId}" 
@@ -65,7 +56,6 @@ function showToast(type, message, duration = 3000) {
         </div>
     `;
 
-  // 4. Append to container and animate in
   const $toast = $(toastHtml);
   $container.append($toast);
 
@@ -75,18 +65,14 @@ function showToast(type, message, duration = 3000) {
       .addClass("translate-y-0 sm:translate-x-0 opacity-100");
   }, 10);
 
-  // 5. Auto-remove after the requested duration (3 seconds by default)
   setTimeout(
     () => {
       dismissToast(`#${toastId}`);
     },
-    Math.max(3000, Number(duration) || 3000),
+    Math.max(5000, Number(duration) || 5000),
   );
 }
 
-/**
- * Helper function to handle smooth dismissal animation
- */
 function dismissToast(toastSelector) {
   const $toast = $(toastSelector);
   if ($toast.length > 0) {
