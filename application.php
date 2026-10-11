@@ -86,10 +86,19 @@ unset($_SESSION['application_error']);
                                 </select></label>
                             <label class="text-xs font-semibold sm:col-span-2">Home address<input required name="address" maxlength="255" class="mt-1 w-full rounded-md border border-brand-primary/20 px-3 py-2.5 text-sm" /></label>
                         </div>
-                        <label for="privacy-consent" class="flex items-start gap-3 rounded-lg border border-brand-primary/20 bg-white/70 p-4 text-sm">
-                            <input id="privacy-consent" name="privacy_consent" value="1" type="checkbox" class="mt-1 size-4 shrink-0 accent-brand-primary">
-                            <span><strong class="block">Data Privacy Notice and Consent</strong>By submitting this application form, you acknowledge and agree that the system administrators will collect, record, process, store, and retain your personal information (including your name, contact details, and submitted credentials) solely for the purpose of processing, evaluating, and managing your application request. All data collected is handled with strict confidentiality in accordance with the Data Privacy Act of 2012, protected by secure technical safeguards, and accessible only to authorized personnel. Your submission serves as your free, explicit, and informed consent to the processing of your personal data for these specified operational purposes.</span>
-                        </label>
+                        <section class="rounded-lg border border-brand-primary/20 bg-white/70 p-4 text-sm" aria-labelledby="privacy-notice-title">
+                            <h2 id="privacy-notice-title" class="font-semibold">Data Privacy Notice and Consent</h2>
+                            <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                                <label for="privacy-consent" class="flex items-start gap-2">
+                                    <input id="privacy-consent" name="privacy_consent" value="1" type="checkbox" class="mt-1 size-4 shrink-0 accent-brand-primary">
+                                    <span>I have read and agree to the Data Privacy Notice.</span>
+                                </label>
+                                <button id="privacy-read-more" type="button" aria-expanded="false" aria-controls="privacy-full-notice" class="font-semibold text-brand-primary">Read more…</button>
+                            </div>
+                            <div id="privacy-full-notice" class="hidden mt-3 border-t border-brand-primary/10 pt-3 text-xs leading-relaxed text-gray-700">
+                                By submitting this application form, you acknowledge and agree that the system administrators will collect, record, process, store, and retain your personal information (including your name, contact details, and submitted credentials) solely for the purpose of processing, evaluating, and managing your application request. All data collected is handled with strict confidentiality in accordance with the Data Privacy Act of 2012, protected by secure technical safeguards, and accessible only to authorized personnel. Your submission serves as your free, explicit, and informed consent to the processing of your personal data for these specified operational purposes.
+                            </div>
+                        </section>
                         <button type="submit" class="w-full sm:w-auto bg-brand-primary hover:bg-brand-dark text-white font-semibold px-7 py-3 rounded-lg text-sm">Submit application</button>
                     </form>
                 </section><?php endif; ?>
@@ -98,6 +107,13 @@ unset($_SESSION['application_error']);
     <footer class="relative z-10 text-center text-xs text-brand-accent/70 py-6">Paxton University Student Services Information System</footer>
     <script src="js/helperFunction.js"></script>
     <script>
+        document.querySelector('#privacy-read-more')?.addEventListener('click', function() {
+            const notice = document.querySelector('#privacy-full-notice');
+            const expanded = this.getAttribute('aria-expanded') === 'true';
+            this.setAttribute('aria-expanded', String(!expanded));
+            this.textContent = expanded ? 'Read more…' : 'Read less';
+            notice?.classList.toggle('hidden', expanded);
+        });
         const contactNumberInput = document.querySelector('#application-form [name="contact_number"]');
         contactNumberInput?.addEventListener('input', function() {
             this.setCustomValidity(this.value !== '' && !/^\d{11}$/.test(this.value) ?
