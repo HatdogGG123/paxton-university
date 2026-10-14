@@ -683,8 +683,6 @@ unset($_SESSION['settings_notice']);
                 $(this).closest('.fixed').addClass('hidden');
             });
 
-            // EDIT BUTTON CLICK HANDLERS (POPULATE MODALS)
-
             // Edit Department
             $(document).on('click', '.btn-edit-dept', function() {
                 const tr = $(this).closest('tr');
@@ -774,20 +772,25 @@ unset($_SESSION['settings_notice']);
 
             function refresh(table) {
                 const body = table.tBodies[0];
+
                 if (!body) return;
+
                 const allRows = Array.from(body.rows);
                 const dataRows = allRows.filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]'));
                 const rows = visibleRows(table);
                 const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
                 const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+
                 table.dataset.localPage = String(page);
                 allRows.forEach(row => {
                     row.hidden = true;
                 });
+
                 const start = (page - 1) * pageSize;
                 rows.slice(start, start + pageSize).forEach(row => {
                     row.hidden = false;
                 });
+
                 if (!rows.length) {
                     let emptyRow = allRows.find(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]'));
                     if (!emptyRow) {
@@ -805,13 +808,17 @@ unset($_SESSION['settings_notice']);
                         emptyCell.textContent = dataRows.length ? 'No records match the selected filters.' : 'No records to show.';
                         emptyCell.classList.add('text-center');
                     }
-                } else allRows.filter(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]')).forEach(row => row.remove());
+                } else {
+                    allRows.filter(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]')).forEach(row => row.remove());
+                }
                 const controls = controlsFor(table);
+
                 controls.hidden = rows.length <= pageSize;
                 controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
                 controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
                 controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
             }
+
             let refreshPending = false;
 
             function scheduleRefresh() {
@@ -826,6 +833,7 @@ unset($_SESSION['settings_notice']);
             function refreshAll() {
                 tables.forEach(refresh);
             }
+
             document.addEventListener('click', event => {
                 const button = event.target.closest('[data-local-page-step]');
                 if (!button) return;
@@ -835,14 +843,17 @@ unset($_SESSION['settings_notice']);
                 table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
                 refresh(table);
             });
+
             ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
             const observer = new MutationObserver(records => {
                 if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
             });
+
             observer.observe(document.body, {
                 childList: true,
                 subtree: true
             });
+
             refreshAll();
         })();
     </script>

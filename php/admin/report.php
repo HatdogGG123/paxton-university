@@ -45,7 +45,7 @@ require_once __DIR__ . '/../includes/audit-page-data.php';
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Top Navigation Bar -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -138,7 +138,8 @@ require_once __DIR__ . '/../includes/audit-page-data.php';
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Role Filter</label>
                     <select id="report_filter_role" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
-                        <option value="">All User Roles</option><option>Admin</option>
+                        <option value="">All User Roles</option>
+                        <option>Admin</option>
                         <option>Registrar</option>
                         <option>Cashier</option>
                         <option>Department</option>
@@ -152,11 +153,16 @@ require_once __DIR__ . '/../includes/audit-page-data.php';
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Action Type</label>
                     <select id="report_filter_action" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
-                        <option value="">All Actions</option><option value="Login">Login / Authentication</option><option value="UPDATE">Update / Edit</option><option value="CREATE">Create / Add</option><option value="PAYMENT">Payment</option><option value="DISABLE">Disable / Delete / Reject</option>
-                        
-                        
-                        
-                        
+                        <option value="">All Actions</option>
+                        <option value="Login">Login / Authentication</option>
+                        <option value="UPDATE">Update / Edit</option>
+                        <option value="CREATE">Create / Add</option>
+                        <option value="PAYMENT">Payment</option>
+                        <option value="DISABLE">Disable / Delete / Reject</option>
+
+
+
+
                     </select>
                 </div>
                 <div>
@@ -191,7 +197,13 @@ require_once __DIR__ . '/../includes/audit-page-data.php';
 
             <div class="overflow-x-auto">
                 <table id="report_table" class="w-full text-left text-xs border-collapse" style="table-layout:fixed;min-width:780px">
-                    <colgroup><col style="width:18%"><col style="width:15%"><col style="width:12%"><col style="width:37%"><col style="width:18%"></colgroup>
+                    <colgroup>
+                        <col style="width:18%">
+                        <col style="width:15%">
+                        <col style="width:12%">
+                        <col style="width:37%">
+                        <col style="width:18%">
+                    </colgroup>
                     <thead>
                         <tr class="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase tracking-wider font-semibold">
                             <th class="py-3 px-5">Timestamp</th>
@@ -221,6 +233,7 @@ require_once __DIR__ . '/../includes/audit-page-data.php';
             $('#mobile_menu_btn').on('click', function() {
                 $('#mobile_menu').toggleClass('hidden');
             });
+
             function filterAuditRows() {
                 const search = ($('#report_filter_search').val() || '').toLowerCase();
                 const role = $('#report_filter_role').val();
@@ -228,10 +241,10 @@ require_once __DIR__ . '/../includes/audit-page-data.php';
                 const date = $('#report_filter_date').val();
                 $('.audit-row').each(function() {
                     const row = $(this);
-                    const matches = (!search || row.text().toLowerCase().includes(search))
-                        && (!role || row.attr('data-role') === role)
-                        && (!action || row.attr('data-action') === action)
-                        && (!date || row.attr('data-date') === date);
+                    const matches = (!search || row.text().toLowerCase().includes(search)) &&
+                        (!role || row.attr('data-role') === role) &&
+                        (!action || row.attr('data-action') === action) &&
+                        (!date || row.attr('data-date') === date);
                     // Keep rows in the table formatting context; display toggles can
                     // make a <tr> render as a block and collapse its columns.
                     row[0].dataset.filteredOut = matches ? 'false' : 'true';
@@ -262,71 +275,118 @@ require_once __DIR__ . '/../includes/audit-page-data.php';
         }
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]') && row.dataset.filteredOut !== 'true');
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const dataRows = allRows.filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]'));
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        if (!rows.length) {
-            let emptyRow = allRows.find(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]'));
-            if (!emptyRow) { emptyRow = document.createElement('tr'); emptyRow.className = 'table-empty-state'; const cell = document.createElement('td'); cell.className = 'py-12 px-5 text-center text-gray-500'; cell.colSpan = table.tHead?.rows[0]?.cells.length || 1; emptyRow.appendChild(cell); body.appendChild(emptyRow); }
-            emptyRow.hidden = false; const emptyCell = emptyRow.querySelector('td'); if (emptyCell) { emptyCell.textContent = dataRows.length ? 'No records match the selected filters.' : 'No records to show.'; emptyCell.classList.add('text-center'); }
-        } else { allRows.filter(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]')).forEach(row => row.remove()); }
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]') && row.dataset.filteredOut !== 'true');
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+
+                if (!body) {
+                    return;
+                }
+
+                const allRows = Array.from(body.rows);
+                const dataRows = allRows.filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]'));
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+
+                if (!rows.length) {
+                    let emptyRow = allRows.find(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]'));
+                    if (!emptyRow) {
+                        emptyRow = document.createElement('tr');
+                        emptyRow.className = 'table-empty-state';
+                        const cell = document.createElement('td');
+                        cell.className = 'py-12 px-5 text-center text-gray-500';
+                        cell.colSpan = table.tHead?.rows[0]?.cells.length || 1;
+                        emptyRow.appendChild(cell);
+                        body.appendChild(emptyRow);
+                    }
+                    emptyRow.hidden = false;
+                    const emptyCell = emptyRow.querySelector('td');
+                    if (emptyCell) {
+                        emptyCell.textContent = dataRows.length ? 'No records match the selected filters.' : 'No records to show.';
+                        emptyCell.classList.add('text-center');
+                    }
+                } else {
+                    allRows.filter(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]')).forEach(row => row.remove());
+                }
+
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>

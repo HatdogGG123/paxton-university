@@ -458,37 +458,49 @@ unset($_SESSION['account_email_notice']);
                         row.dataset.role = user.role;
                         row.dataset.status = user.status;
                         row.replaceChildren();
+
                         const userCell = document.createElement('td');
                         userCell.className = 'py-3 px-4';
+
                         const username = document.createElement('div');
                         username.className = 'font-semibold text-gray-900';
                         username.textContent = user.username;
+
                         const id = document.createElement('div');
                         id.className = 'text-[11px] text-gray-400';
                         id.textContent = 'ID: ' + user.id;
                         userCell.append(username, id);
+
                         const email = document.createElement('td');
                         email.className = 'py-3 px-4 user-email';
                         email.textContent = user.email || '—';
+
                         const roleCell = document.createElement('td');
                         roleCell.className = 'py-3 px-4';
+
                         const roleBadge = document.createElement('span');
                         roleBadge.className = 'text-xs font-medium px-2 py-0.5 rounded border text-gray-600 bg-gray-100 border-gray-200';
                         roleBadge.textContent = user.role;
                         roleCell.append(roleBadge);
+
                         const department = document.createElement('td');
                         department.className = 'py-3 px-4 ' + (user.department_name ? 'font-medium text-gray-700' : 'text-gray-400');
                         department.textContent = user.department_name || '—';
+
                         const status = document.createElement('td');
                         status.className = 'py-3 px-4 text-center';
+
                         const statusLabel = document.createElement('span');
                         statusLabel.className = 'inline-flex items-center gap-1.5 text-xs font-medium ' + (user.status === 'Active' ? 'text-emerald-700' : 'text-gray-500');
+
                         const dot = document.createElement('span');
                         dot.className = 'w-1.5 h-1.5 rounded-full ' + (user.status === 'Active' ? 'bg-emerald-500' : 'bg-gray-400');
                         statusLabel.append(dot, document.createTextNode(user.status));
                         status.append(statusLabel);
+
                         const actions = document.createElement('td');
                         actions.className = 'py-3 px-4 text-right';
+
                         const edit = document.createElement('button');
                         edit.type = 'button';
                         edit.className = 'btn-edit-user p-1.5 text-gray-500 hover:text-brand-primary rounded-md hover:bg-gray-100';
@@ -505,16 +517,27 @@ unset($_SESSION['account_email_notice']);
                         edit.dataset.address = user.address || '';
                         edit.dataset.program = user.program_id || '';
                         edit.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>';
+
                         actions.append(edit);
+
                         const toggle = buildStatusToggle(user);
-                        if (toggle) actions.append(toggle);
+                        if (toggle) {
+                            actions.append(toggle);
+                        }
                         row.append(userCell, email, roleCell, department, status, actions);
-                        if (isNew) document.getElementById('user_table_body').prepend(row);
+
+                        if (isNew) {
+                            document.getElementById('user_table_body').prepend(row);
+                        }
+
                         if (Number.isInteger(Number(response.new_applicant_count)) && typeof window.updateAdmissionsBadge === 'function') {
                             window.updateAdmissionsBadge(response.new_applicant_count);
                         }
+
                         $('#modal_user_form').addClass('hidden');
+
                         form.reset();
+
                         filterUsers();
                         showToast('success', response.message || 'Account saved.');
                     })
@@ -530,7 +553,10 @@ unset($_SESSION['account_email_notice']);
             const currentUserId = <?= (int) ($_SESSION['user']['id'] ?? 0) ?>;
 
             function buildStatusToggle(user) {
-                if (Number(user.id) === 1 || Number(user.id) === currentUserId) return null;
+                if (Number(user.id) === 1 || Number(user.id) === currentUserId) {
+                    return null;
+                }
+
                 const isActive = user.status === 'Active';
                 const button = document.createElement('button');
                 button.type = 'button';
@@ -540,6 +566,7 @@ unset($_SESSION['account_email_notice']);
                 button.dataset.username = user.username;
                 button.dataset.action = isActive ? 'Disable' : 'Enable';
                 button.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + (isActive ? 'M18.364 5.636a9 9 0 11-12.728 0M12 3v9' : 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z') + '"></path></svg>';
+
                 return button;
             }
 
