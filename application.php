@@ -3,22 +3,27 @@ require_once __DIR__ . '/php/includes/auth.php';
 require_once __DIR__ . '/models/Admission.php';
 
 ssis_start_session();
-if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 $admissionModel = new Admission(Database::getConnection());
 $programs = $admissionModel->programs();
 $submittedNumber = is_string($_GET['submitted'] ?? null) ? trim($_GET['submitted']) : '';
 $initialRequirements = [];
+
 if ($submittedNumber !== '' && strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'applicant') {
     $submittedApplication = $admissionModel->getApplicantApplication((int) $_SESSION['user']['id']);
     if ($submittedApplication) $initialRequirements = $admissionModel->applicantDocuments((int) $submittedApplication['id']);
 }
+
 $credentials = $_SESSION['applicant_credentials'] ?? null;
 if (is_array($credentials) && ($credentials['application_no'] ?? '') === $submittedNumber) {
     unset($_SESSION['applicant_credentials']);
 } else {
     $credentials = null;
 }
+
 $error = $_SESSION['application_error'] ?? null;
 unset($_SESSION['application_error']);
 ?>
