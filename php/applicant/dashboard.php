@@ -82,43 +82,67 @@ $esc = static fn($v): string => htmlspecialchars((string)($v ?? ''), ENT_QUOTES,
             showToast('error', <?= json_encode($applicationError, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
         </script>
     <?php endif; ?>
-<script>
-(function($) {
-    if (!$) return;
-    $(document).on('submit', 'form[data-page-ajax]', function(event) {
-        event.preventDefault();
-        const form = this;
-        const button = form.querySelector('[type="submit"]');
-        if (button?.disabled) return;
-        if (button) button.disabled = true;
-        $.ajax({ url: form.getAttribute('action'), method: 'POST', data: new FormData(form), processData: false, contentType: false, dataType: 'json', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .done(function(response) {
-                if (!response || response.status === 'error') {
-                    showToast('error', response?.message || 'The application request could not be completed.');
-                    if (button) button.disabled = false;
+    <script>
+        (function($) {
+            if (!$) return;
+            $(document).on('submit', 'form[data-page-ajax]', function(event) {
+
+                event.preventDefault();
+
+                const form = this;
+                const button = form.querySelector('[type="submit"]');
+
+                if (button?.disabled) {
                     return;
                 }
-                const redirect = response.redirect || response.data?.redirect;
-                const action = form.querySelector('[name="action"]')?.value;
-                if (action === 'confirm_approval' && redirect) { window.location.assign(redirect); return; }
-                const requirementId = form.querySelector('[name="requirement_id"]')?.value;
-                const card = form.closest('[data-applicant-document]') || document.querySelector('[data-applicant-document="' + Number(requirementId) + '"]');
-                if (card) {
-                    const status = card.querySelector('.text-gray-500');
-                    if (status) status.textContent = 'Status: Submitted';
-                    form.remove();
-                    const received = document.createElement('span'); received.className = 'text-xs font-semibold text-emerald-700'; received.textContent = 'Document submitted';
-                    card.querySelector('.flex.justify-between')?.appendChild(received);
-                }
-                showToast('success', response.message || 'Application updated successfully.');
-            })
-            .fail(function(xhr) {
-                showToast('error', xhr.responseJSON?.message || 'The application request failed. Please try again.');
-                if (button) button.disabled = false;
+
+                if (button) button.disabled = true;
+                $.ajax({
+                        url: form.getAttribute('action'),
+                        method: 'POST',
+                        data: new FormData(form),
+                        processData: false,
+                        contentType: false,
+                        dataType: 'json',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .done(function(response) {
+                        if (!response || response.status === 'error') {
+                            showToast('error', response?.message || 'The application request could not be completed.');
+                            if (button) button.disabled = false;
+                            return;
+                        }
+
+                        const redirect = response.redirect || response.data?.redirect;
+                        const action = form.querySelector('[name="action"]')?.value;
+                        if (action === 'confirm_approval' && redirect) {
+                            window.location.assign(redirect);
+                            return;
+                        }
+
+                        const requirementId = form.querySelector('[name="requirement_id"]')?.value;
+                        const card = form.closest('[data-applicant-document]') || document.querySelector('[data-applicant-document="' + Number(requirementId) + '"]');
+                        if (card) {
+                            const status = card.querySelector('.text-gray-500');
+                            if (status) status.textContent = 'Status: Submitted';
+                            form.remove();
+                            const received = document.createElement('span');
+                            received.className = 'text-xs font-semibold text-emerald-700';
+                            received.textContent = 'Document submitted';
+                            card.querySelector('.flex.justify-between')?.appendChild(received);
+                        }
+                        
+                        showToast('success', response.message || 'Application updated successfully.');
+                    })
+                    .fail(function(xhr) {
+                        showToast('error', xhr.responseJSON?.message || 'The application request failed. Please try again.');
+                        if (button) button.disabled = false;
+                    });
             });
-    });
-})(window.jQuery);
-</script>
+        })(window.jQuery);
+    </script>
 </body>
 
 </html>
