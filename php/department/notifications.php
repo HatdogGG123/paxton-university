@@ -1,13 +1,19 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
 ssis_require_role('department');
+
 require_once __DIR__ . '/../includes/notifications-page-data.php';
 require_once __DIR__ . '/../../models/Clearance.php';
+
 $departmentModel = new Clearance(Database::getConnection());
+
 $departmentId = $departmentModel->getDepartmentId((int) $_SESSION['user']['id']);
 $departmentName = $departmentModel->getDepartmentName($departmentId) ?? 'Department';
+
 $staffName = $_SESSION['user']['full_name'] ?: $_SESSION['user']['username'];
-$esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
+$esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -44,7 +50,7 @@ $esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), E
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Navigation Header -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -77,8 +83,8 @@ $esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), E
 
                     <!-- Mobile Menu Button -->
                     <a href="../logout.php" id="nav_logout_btn" class="p-2 text-gray-400 hover:text-red-600 rounded-md hover:bg-gray-100 transition-colors" title="Log Out">
-                            <i data-lucide="log-out" class="w-5 h-5"></i>
-                        </a>
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </a>
                     <button type="button" id="btn_mobile_menu" class="lg:hidden p-2 rounded-md text-gray-500 hover:text-brand-dark hover:bg-gray-100 focus:outline-none">
                         <i data-lucide="menu" id="icon_menu_open" class="w-6 h-6"></i>
                         <i data-lucide="x" id="icon_menu_close" class="w-6 h-6 hidden"></i>
@@ -119,7 +125,7 @@ $esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), E
     </footer>
 
     <!-- Interactive Scripts -->
-    
+
     <script>
         $(document).ready(function() {
             lucide.createIcons();
@@ -139,37 +145,37 @@ $esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), E
     </script>
     <script src="../../js/private-page-history.js"></script>
     <script>
-    $(document).on('submit', '#container_notifications_list form[method="post"], #container_notifications_list form[method="POST"]', function(event) {
-        event.preventDefault();
-        var form = this;
-        var $button = $(form).find('button[type="submit"], button:not([type])').first();
-        $button.prop('disabled', true).addClass('opacity-60');
-        $.post('../../controller/notificationsController.php', $(form).serialize(), null, 'json')
-            .done(function(response) {
-                if (response && response.status === 'success') {
-                    var readAll = $(form).find('[name="notification_action"]').val() === 'read_all';
-                    var $items = readAll ? $('#container_notifications_list .notification-item.unread') : $(form).closest('.notification-item');
-                    $items.each(function () {
-                        this.classList.remove('unread', 'bg-brand-accent/20', 'border-l-brand-primary');
-                        this.classList.add('read', 'bg-white', 'border-l-gray-200');
-                        this.querySelector('[title="Unread"]')?.remove();
-                        this.querySelector('form')?.remove();
-                        if (!this.querySelector('.tracking-wider')) this.insertAdjacentHTML('beforeend', '<span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider shrink-0">Read</span>');
-                    });
-                    if (readAll) form.remove();
-                    var count = $('#container_notifications_list .notification-item.unread').length;
-                    $('#container_notifications_list > div:first-child p').text(count + ' unread notification' + (count === 1 ? '' : 's'));
-                    showToast('success', response.message || 'Notification updated.');
-                }
-                showToast('error', response && response.message ? response.message : 'The notification action could not be completed.');
-                $button.prop('disabled', false).removeClass('opacity-60');
-            })
-            .fail(function(xhr) {
-                var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The notification action could not be completed. Please try again.';
-                showToast('error', message);
-                $button.prop('disabled', false).removeClass('opacity-60');
-            });
-    });
+        $(document).on('submit', '#container_notifications_list form[method="post"], #container_notifications_list form[method="POST"]', function(event) {
+            event.preventDefault();
+            var form = this;
+            var $button = $(form).find('button[type="submit"], button:not([type])').first();
+            $button.prop('disabled', true).addClass('opacity-60');
+            $.post('../../controller/notificationsController.php', $(form).serialize(), null, 'json')
+                .done(function(response) {
+                    if (response && response.status === 'success') {
+                        var readAll = $(form).find('[name="notification_action"]').val() === 'read_all';
+                        var $items = readAll ? $('#container_notifications_list .notification-item.unread') : $(form).closest('.notification-item');
+                        $items.each(function() {
+                            this.classList.remove('unread', 'bg-brand-accent/20', 'border-l-brand-primary');
+                            this.classList.add('read', 'bg-white', 'border-l-gray-200');
+                            this.querySelector('[title="Unread"]')?.remove();
+                            this.querySelector('form')?.remove();
+                            if (!this.querySelector('.tracking-wider')) this.insertAdjacentHTML('beforeend', '<span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider shrink-0">Read</span>');
+                        });
+                        if (readAll) form.remove();
+                        var count = $('#container_notifications_list .notification-item.unread').length;
+                        $('#container_notifications_list > div:first-child p').text(count + ' unread notification' + (count === 1 ? '' : 's'));
+                        showToast('success', response.message || 'Notification updated.');
+                    }
+                    showToast('error', response && response.message ? response.message : 'The notification action could not be completed.');
+                    $button.prop('disabled', false).removeClass('opacity-60');
+                })
+                .fail(function(xhr) {
+                    var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The notification action could not be completed. Please try again.';
+                    showToast('error', message);
+                    $button.prop('disabled', false).removeClass('opacity-60');
+                });
+        });
     </script>
 </body>
 

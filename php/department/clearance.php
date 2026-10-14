@@ -1,21 +1,36 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
 ssis_require_role('department');
+
 require_once __DIR__ . '/../../services/ClearanceService.php';
-if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $clearanceModel = new Clearance(Database::getConnection());
 $clearanceController = new ClearanceService($clearanceModel);
+
 $notice = $_SESSION['department_clearance_notice'] ?? null;
+
 unset($_SESSION['department_clearance_notice']);
+
 $departmentId = $clearanceModel->getDepartmentId((int) $_SESSION['user']['id']);
 $departmentName = $clearanceModel->getDepartmentName($departmentId) ?? 'Department';
+
 $staffName = $_SESSION['user']['full_name'] ?: $_SESSION['user']['username'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $token = $_POST['csrf_token'] ?? '';
-        if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) { throw new DomainException('This form expired. Refresh the page and try again.'); }
+
+        if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
+            throw new DomainException('This form expired. Refresh the page and try again.');
+        }
+
         $clearanceController->review((int) $_SESSION['user']['id'], 'Department', $departmentId, $_POST);
         $_SESSION['department_clearance_notice'] = ['success' => true, 'message' => 'Clearance decision saved and student notified.'];
+
         header('Location: clearance.php');
         exit;
     } catch (DomainException $exception) {
@@ -27,22 +42,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 try {
     $term = $clearanceModel->getCurrentTerm();
+
     if ($term && $departmentId !== null) {
         $clearanceModel->ensureTermClearances((int) $term['id']);
         $queue = $clearanceModel->getOfficeQueue((int) $term['id'], 'Department', $departmentId);
         $requirements = $clearanceModel->getDepartmentRequirements($departmentId);
-    } else { $queue = []; $requirements = []; }
+    } else {
+        $queue = [];
+        $requirements = [];
+    }
 } catch (Throwable $exception) {
     error_log('SSIS department clearance page failed: ' . $exception->getMessage());
     http_response_code(503);
+
     exit('Clearance information is temporarily unavailable. Please try again later.');
 }
-$esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
+$esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 $queueData = [];
 $pendingCount = $approvedCount = $rejectedCount = 0;
+
 foreach ($queue as $item) {
     $queueData[(int) $item['item_id']] = $item;
-    if ($item['status'] === 'Pending') { $pendingCount++; } elseif ($item['status'] === 'Approved') { $approvedCount++; } else { $rejectedCount++; }
+
+    if ($item['status'] === 'Pending') {
+        $pendingCount++;
+    } elseif ($item['status'] === 'Approved') {
+        $approvedCount++;
+    } else {
+        $rejectedCount++;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -80,7 +109,7 @@ foreach ($queue as $item) {
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Navigation Header -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -113,8 +142,8 @@ foreach ($queue as $item) {
 
                     <!-- Mobile Menu Button -->
                     <a href="../logout.php" id="nav_logout_btn" class="p-2 text-gray-400 hover:text-red-600 rounded-md hover:bg-gray-100 transition-colors" title="Log Out">
-                            <i data-lucide="log-out" class="w-5 h-5"></i>
-                        </a>
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </a>
                     <button type="button" id="btn_mobile_menu" class="lg:hidden p-2 rounded-md text-gray-500 hover:text-brand-dark hover:bg-gray-100 focus:outline-none">
                         <i data-lucide="menu" id="icon_menu_open" class="w-6 h-6"></i>
                         <i data-lucide="x" id="icon_menu_close" class="w-6 h-6 hidden"></i>
@@ -188,10 +217,10 @@ foreach ($queue as $item) {
             <div id="req_panel_content" class="mt-4 pt-4 border-t border-gray-100 hidden">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                     <?php foreach ($requirements as $requirement): ?>
-                    <div class="p-3 bg-gray-50 border border-gray-200 rounded-md">
-                        <p class="font-bold text-brand-dark"><?= $esc($requirement['name']) ?></p>
-                        <p class="text-[11px] text-gray-500 mt-0.5"><?= $esc($requirement['description']) ?></p>
-                    </div>
+                        <div class="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                            <p class="font-bold text-brand-dark"><?= $esc($requirement['name']) ?></p>
+                            <p class="text-[11px] text-gray-500 mt-0.5"><?= $esc($requirement['description']) ?></p>
+                        </div>
                     <?php endforeach; ?>
                 </div>
             </div>
@@ -243,7 +272,13 @@ foreach ($queue as $item) {
             <!-- Student Clearance Table (Responsive horizontal scroll with fixed column layout) -->
             <div class="overflow-x-auto w-full">
                 <table class="w-full text-left text-xs border-collapse min-w-[900px]" style="table-layout:fixed;min-width:1100px">
-                    <colgroup><col style="width:22%"><col style="width:21%"><col style="width:26%"><col style="width:16%"><col style="width:15%"></colgroup>
+                    <colgroup>
+                        <col style="width:22%">
+                        <col style="width:21%">
+                        <col style="width:26%">
+                        <col style="width:16%">
+                        <col style="width:15%">
+                    </colgroup>
                     <thead>
                         <tr class="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase font-semibold">
                             <th class="py-3.5 px-5 whitespace-nowrap">Student Information</th>
@@ -254,16 +289,35 @@ foreach ($queue as $item) {
                         </tr>
                     </thead>
                     <tbody id="clearance_table_body" class="divide-y divide-gray-100 font-medium text-gray-700">
-                        <?php foreach ($queue as $item): $year = (int) $item['year_level'] . 'th Year'; $year = match ((int) $item['year_level']) { 1 => '1st Year', 2 => '2nd Year', 3 => '3rd Year', default => $year }; $status = $item['status']; $statusStyle = $status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : ($status === 'Rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'); ?>
-                        <tr class="hover:bg-gray-50/50 student-row" data-item-id="<?= (int) $item['item_id'] ?>" data-program="<?= $esc($item['program_code']) ?>" data-year="<?= $esc($year) ?>" data-status="<?= $esc($status) ?>">
-                            <td class="py-3.5 px-5 whitespace-nowrap"><p class="font-bold text-brand-dark"><?= $esc($item['student_name']) ?></p><p class="text-gray-400 text-[11px] font-display"><?= $esc($item['student_no']) ?></p></td>
-                            <td class="py-3.5 px-5 whitespace-nowrap"><p class="font-semibold text-brand-dark"><?= $esc($item['program_name']) ?></p><p class="text-gray-400 text-[11px]"><?= $esc($year) ?></p></td>
-                            <td class="py-3.5 px-5 whitespace-nowrap"><p class="font-medium text-gray-800"><?= $esc($item['requirement_name']) ?></p><p data-clearance-reviewed class="text-gray-400 text-[10px]"><?= $status === 'Pending' ? 'Awaiting department review' : $esc($item['reviewed_at'] ? date('M j, Y', strtotime($item['reviewed_at'])) : '') ?></p></td>
-                            <td class="py-3.5 px-5 text-center whitespace-nowrap"><span data-clearance-status class="px-2.5 py-0.5 rounded-full text-[10px] font-bold <?= $statusStyle ?>"><?= $status === 'Pending' ? 'Pending Review' : $esc($status) ?></span></td>
-                            <td class="py-3.5 px-5 text-right space-x-1 whitespace-nowrap"><button type="button" onclick="openReviewModal(<?= (int) $item['item_id'] ?>)" class="px-2.5 py-1.5 rounded-md text-xs font-semibold <?= $status === 'Pending' ? 'bg-brand-primary text-white hover:bg-brand-primary/90' : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50' ?>"><?= $status === 'Pending' ? 'Review' : 'View Details' ?></button></td>
-                        </tr>
+                        <?php foreach ($queue as $item): $year = (int) $item['year_level'] . 'th Year';
+                            $year = match ((int) $item['year_level']) {
+                                1 => '1st Year',
+                                2 => '2nd Year',
+                                3 => '3rd Year',
+                                default => $year
+                            };
+                            $status = $item['status'];
+                            $statusStyle = $status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : ($status === 'Rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'); ?>
+                            <tr class="hover:bg-gray-50/50 student-row" data-item-id="<?= (int) $item['item_id'] ?>" data-program="<?= $esc($item['program_code']) ?>" data-year="<?= $esc($year) ?>" data-status="<?= $esc($status) ?>">
+                                <td class="py-3.5 px-5 whitespace-nowrap">
+                                    <p class="font-bold text-brand-dark"><?= $esc($item['student_name']) ?></p>
+                                    <p class="text-gray-400 text-[11px] font-display"><?= $esc($item['student_no']) ?></p>
+                                </td>
+                                <td class="py-3.5 px-5 whitespace-nowrap">
+                                    <p class="font-semibold text-brand-dark"><?= $esc($item['program_name']) ?></p>
+                                    <p class="text-gray-400 text-[11px]"><?= $esc($year) ?></p>
+                                </td>
+                                <td class="py-3.5 px-5 whitespace-nowrap">
+                                    <p class="font-medium text-gray-800"><?= $esc($item['requirement_name']) ?></p>
+                                    <p data-clearance-reviewed class="text-gray-400 text-[10px]"><?= $status === 'Pending' ? 'Awaiting department review' : $esc($item['reviewed_at'] ? date('M j, Y', strtotime($item['reviewed_at'])) : '') ?></p>
+                                </td>
+                                <td class="py-3.5 px-5 text-center whitespace-nowrap"><span data-clearance-status class="px-2.5 py-0.5 rounded-full text-[10px] font-bold <?= $statusStyle ?>"><?= $status === 'Pending' ? 'Pending Review' : $esc($status) ?></span></td>
+                                <td class="py-3.5 px-5 text-right space-x-1 whitespace-nowrap"><button type="button" onclick="openReviewModal(<?= (int) $item['item_id'] ?>)" class="px-2.5 py-1.5 rounded-md text-xs font-semibold <?= $status === 'Pending' ? 'bg-brand-primary text-white hover:bg-brand-primary/90' : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50' ?>"><?= $status === 'Pending' ? 'Review' : 'View Details' ?></button></td>
+                            </tr>
                         <?php endforeach; ?>
-                        <?php if (!$queue): ?><tr><td colspan="5" class="py-8 px-5 text-center text-gray-500">No clearance requests are assigned to your department.</td></tr><?php endif; ?>
+                        <?php if (!$queue): ?><tr>
+                                <td colspan="5" class="py-8 px-5 text-center text-gray-500">No clearance requests are assigned to your department.</td>
+                            </tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -344,12 +398,13 @@ foreach ($queue as $item) {
     </footer>
 
     <!-- Interactive Scripts -->
-    
+
     <script>
         const departmentQueue = <?= json_encode($queueData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
         let currentDecision = '';
         let currentItemId = null;
-        <?php if ($notice): ?>showToast("<?= !empty($notice['success']) ? 'success' : 'error' ?>", <?= json_encode($notice['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);<?php endif; ?>
+        <?php if ($notice): ?>showToast("<?= !empty($notice['success']) ? 'success' : 'error' ?>", <?= json_encode($notice['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
+        <?php endif; ?>
 
         $(document).ready(function() {
             lucide.createIcons();
@@ -441,7 +496,11 @@ foreach ($queue as $item) {
 
             const previousStatus = item.status;
             if (previousStatus !== status) {
-                const countIds = { Pending: 'stat_pending_count', Approved: 'stat_approved_count', Rejected: 'stat_rejected_count' };
+                const countIds = {
+                    Pending: 'stat_pending_count',
+                    Approved: 'stat_approved_count',
+                    Rejected: 'stat_rejected_count'
+                };
                 const previousCount = document.getElementById(countIds[previousStatus]);
                 const nextCount = document.getElementById(countIds[status]);
                 if (previousCount) previousCount.textContent = String(Math.max(0, Number(previousCount.textContent) - 1));
@@ -489,124 +548,154 @@ foreach ($queue as $item) {
         }
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function ($) {
-    if (!$) return;
-    $(document).on('submit', 'form[method="post"], form[method="POST"]', function (event) {
-        if (event.isDefaultPrevented()) return;
-        event.preventDefault();
-        var form = this;
-        var fields = $(form).serializeArray();
-        if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
-            fields.push({ name: event.originalEvent.submitter.name, value: event.originalEvent.submitter.value });
-        }
-        if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({ name: 'action', value: 'handleUserLogin' });
-        $.post('../../controller/clearanceController.php', $.param(fields), null, 'json')
-            .done(function (response) {
-                if (response && response.status === 'success') {
-                    updateClearanceRow(form.querySelector('[name="item_id"]').value, form.querySelector('[name="status"]').value, form.querySelector('[name="rejection_reason"]').value);
-                    $('#modal_review').addClass('hidden');
-                    showToast('success', response.message || 'Clearance request updated.');
-                    return;
-                } else {
-                    var message = response && response.message ? response.message : 'The action could not be completed.';
-                    showToast('error', message);
+    <script>
+        (function($) {
+            if (!$) return;
+            $(document).on('submit', 'form[method="post"], form[method="POST"]', function(event) {
+                if (event.isDefaultPrevented()) return;
+                event.preventDefault();
+                var form = this;
+                var fields = $(form).serializeArray();
+                if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
+                    fields.push({
+                        name: event.originalEvent.submitter.name,
+                        value: event.originalEvent.submitter.value
+                    });
                 }
-            })
-            .fail(function (xhr) {
-                var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
-                showToast('error', message);
-                if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
-                    var button = document.getElementById('btn-submit');
-                    if (button) { button.disabled = false; button.classList.remove('opacity-80', 'cursor-not-allowed'); button.innerHTML = 'Sign In'; }
-                }
+                if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({
+                    name: 'action',
+                    value: 'handleUserLogin'
+                });
+                $.post('../../controller/clearanceController.php', $.param(fields), null, 'json')
+                    .done(function(response) {
+                        if (response && response.status === 'success') {
+                            updateClearanceRow(form.querySelector('[name="item_id"]').value, form.querySelector('[name="status"]').value, form.querySelector('[name="rejection_reason"]').value);
+                            $('#modal_review').addClass('hidden');
+                            showToast('success', response.message || 'Clearance request updated.');
+                            return;
+                        } else {
+                            var message = response && response.message ? response.message : 'The action could not be completed.';
+                            showToast('error', message);
+                        }
+                    })
+                    .fail(function(xhr) {
+                        var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
+                        showToast('error', message);
+                        if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
+                            var button = document.getElementById('btn-submit');
+                            if (button) {
+                                button.disabled = false;
+                                button.classList.remove('opacity-80', 'cursor-not-allowed');
+                                button.innerHTML = 'Sign In';
+                            }
+                        }
+                    });
             });
-    });
-    var nativeSubmit = HTMLFormElement.prototype.submit;
-    HTMLFormElement.prototype.submit = function () {
-        if ((this.method || 'get').toLowerCase() === 'post') { this.requestSubmit(); return; }
-        nativeSubmit.call(this);
-    };
-})(window.jQuery);
-</script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]') && row.dataset.filteredOut !== 'true');
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const dataRows = allRows.filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]'));
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        if (!rows.length) {
-            let emptyRow = allRows.find(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]'));
-            if (!emptyRow) {
-                emptyRow = document.createElement('tr');
-                emptyRow.className = 'table-empty-state';
-                const cell = document.createElement('td');
-                cell.className = 'py-8 px-5 text-center text-gray-500';
-                cell.colSpan = table.tHead?.rows[0]?.cells.length || 1;
-                emptyRow.appendChild(cell);
-                body.appendChild(emptyRow);
+            var nativeSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function() {
+                if ((this.method || 'get').toLowerCase() === 'post') {
+                    this.requestSubmit();
+                    return;
+                }
+                nativeSubmit.call(this);
+            };
+        })(window.jQuery);
+    </script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]') && row.dataset.filteredOut !== 'true');
             }
-            emptyRow.hidden = false;
-            const cell = emptyRow.querySelector('td');
-            if (cell) cell.textContent = dataRows.length ? 'No clearance requests match the selected filters.' : 'No clearance requests are assigned to your department.';
-        } else {
-            allRows.filter(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]')).forEach(row => row.remove());
-        }
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    document.addEventListener('local-table-refresh', scheduleRefresh);
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const dataRows = allRows.filter(row => !row.classList.contains('table-empty-state') && !row.querySelector('td[colspan]'));
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                if (!rows.length) {
+                    let emptyRow = allRows.find(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]'));
+                    if (!emptyRow) {
+                        emptyRow = document.createElement('tr');
+                        emptyRow.className = 'table-empty-state';
+                        const cell = document.createElement('td');
+                        cell.className = 'py-8 px-5 text-center text-gray-500';
+                        cell.colSpan = table.tHead?.rows[0]?.cells.length || 1;
+                        emptyRow.appendChild(cell);
+                        body.appendChild(emptyRow);
+                    }
+                    emptyRow.hidden = false;
+                    const cell = emptyRow.querySelector('td');
+                    if (cell) cell.textContent = dataRows.length ? 'No clearance requests match the selected filters.' : 'No clearance requests are assigned to your department.';
+                } else {
+                    allRows.filter(row => row.classList.contains('table-empty-state') || row.querySelector('td[colspan]')).forEach(row => row.remove());
+                }
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            document.addEventListener('local-table-refresh', scheduleRefresh);
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>
