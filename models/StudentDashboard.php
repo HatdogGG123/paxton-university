@@ -1,10 +1,9 @@
 <?php
+
 /** Aggregate current student data for the existing dashboard layout. */
 final class StudentDashboard
 {
-    public function __construct(private PDO $db)
-    {
-    }
+    public function __construct(private PDO $db) {}
 
     public function getData(int $userId): array
     {
@@ -16,13 +15,16 @@ final class StudentDashboard
              WHERE student.user_id = :user_id LIMIT 1'
         );
         $profileQuery->execute(['user_id' => $userId]);
+
         $profile = $profileQuery->fetch();
         if (!$profile) {
             throw new DomainException('No student profile is linked to this account.');
         }
+
         $studentId = (int) $profile['id'];
 
         $term = $this->db->query('SELECT id, academic_year, semester FROM terms WHERE is_current = 1 LIMIT 1')->fetch();
+
         if (!$term) {
             $termQuery = $this->db->prepare(
                 'SELECT term.id, term.academic_year, term.semester FROM enrollments enrollment
@@ -30,12 +32,14 @@ final class StudentDashboard
                  WHERE enrollment.student_id = :student_id ORDER BY term.id DESC LIMIT 1'
             );
             $termQuery->execute(['student_id' => $studentId]);
+
             $term = $termQuery->fetch() ?: null;
         }
 
         $enrollment = null;
         $clearance = null;
         $grades = [];
+
         if ($term) {
             $enrollmentQuery = $this->db->prepare(
                 'SELECT enrollment.enrollment_no, enrollment.status, enrollment.submitted_at,
@@ -45,6 +49,7 @@ final class StudentDashboard
                  ORDER BY enrollment.submitted_at DESC, enrollment.id DESC LIMIT 1'
             );
             $enrollmentQuery->execute(['student_id' => $studentId, 'term_id' => (int) $term['id']]);
+
             $enrollment = $enrollmentQuery->fetch() ?: null;
 
             $clearanceQuery = $this->db->prepare(
@@ -80,6 +85,7 @@ final class StudentDashboard
                  GROUP BY clearance.id LIMIT 1"
             );
             $clearanceQuery->execute(['student_id' => $studentId, 'term_id' => (int) $term['id']]);
+
             $clearance = $clearanceQuery->fetch() ?: null;
 
             $gradeQuery = $this->db->prepare(
@@ -89,6 +95,7 @@ final class StudentDashboard
                  ORDER BY grade.released_at DESC, subject.code LIMIT 5"
             );
             $gradeQuery->execute(['student_id' => $studentId, 'term_id' => (int) $term['id']]);
+
             $grades = $gradeQuery->fetchAll();
         }
 
@@ -156,6 +163,7 @@ final class StudentDashboard
     public function getAnnouncements(int $limit = 3): array
     {
         $limit = max(1, min(10, $limit));
+
         return $this->db->query(
             "SELECT announcement.title, announcement.body, announcement.created_at,
                     COALESCE(account.full_name, account.username, 'SSIS') AS posted_by

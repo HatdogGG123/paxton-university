@@ -95,9 +95,11 @@ final class Clearance
         );
         $statement->execute(['user_id' => $userId, 'term_id' => $termId]);
         $clearance = $statement->fetch();
+
         if (!$clearance) {
             return null;
         }
+
         $clearance['items'] = $this->getItemsForClearance((int) $clearance['id']);
 
         return $clearance;
@@ -122,7 +124,9 @@ final class Clearance
                     OR requirement.department_id = program.department_id)
              ORDER BY FIELD(requirement.office, 'Registrar', 'Cashier', 'Department'), department.name, requirement.name"
         );
+
         $statement->execute(['clearance_id' => $clearanceId]);
+
         return $statement->fetchAll();
     }
 
@@ -131,6 +135,7 @@ final class Clearance
         if (!in_array($office, ['Registrar', 'Cashier', 'Department'], true)) {
             throw new DomainException('The clearance office is invalid.');
         }
+
         $sql =
             'SELECT item.id AS item_id, item.status, item.remarks, item.rejection_reason,
                     item.submitted_at, item.reviewed_at, requirement.id AS requirement_id,
@@ -155,7 +160,9 @@ final class Clearance
                  GROUP BY request.student_id
              ) payment_balance ON payment_balance.student_id = student.id
              WHERE clearance.term_id = :term_id AND requirement.office = :office';
+
         $parameters = ['term_id' => $termId, 'office' => $office];
+
         if ($office === 'Department') {
             if ($departmentId === null) {
                 return [];
@@ -164,20 +171,27 @@ final class Clearance
             $sql .= " AND (department.dept_type <> 'Academic' OR program.department_id = requirement.department_id)";
             $parameters['department_id'] = $departmentId;
         }
+
         $sql .= " ORDER BY FIELD(item.status, 'Pending', 'Rejected', 'Approved'), student.last_name, student.first_name, requirement.name";
+
         $statement = $this->db->prepare($sql);
         $statement->execute($parameters);
+
         $items = $statement->fetchAll();
         $clearanceIds = array_values(array_unique(array_map(
-            static fn (array $item): int => (int) $item['clearance_id'],
+            static fn(array $item): int => (int) $item['clearance_id'],
             $items
         )));
+
         $itemsByClearance = $this->getItemsForClearances($clearanceIds);
+
         foreach ($items as &$item) {
             $item['student_name'] = trim(implode(' ', array_filter([$item['first_name'], $item['middle_name'], $item['last_name']], static fn($part): bool => $part !== null && $part !== '')));
             $item['all_items'] = $itemsByClearance[(int) $item['clearance_id']] ?? [];
         }
+
         unset($item);
+
         return $items;
     }
 
@@ -197,19 +211,22 @@ final class Clearance
                     SUM(overall_status = 'In Progress') AS in_progress
              FROM clearances WHERE term_id = :term_id"
         );
+
         $statement->execute(['term_id' => $termId]);
+
         return $statement->fetch() ?: ['total' => 0, 'cleared' => 0, 'action_needed' => 0, 'in_progress' => 0];
     }
 
-    /** Apply a reviewer decision after checking the reviewer's office scope. */
     public function reviewItem(int $itemId, int $reviewerId, string $office, ?int $departmentId, string $status, string $reason = '', string $remarks = '', string $settlementReference = ''): void
     {
         if (!in_array($status, ['Approved', 'Rejected'], true)) {
             throw new DomainException('Choose an allowed clearance decision.');
         }
+
         if ($status === 'Rejected' && trim($reason) === '') {
             throw new DomainException('A reason is required when rejecting a clearance item.');
         }
+
         if (strlen($reason) > 500 || strlen($remarks) > 255 || strlen($settlementReference) > 60) {
             throw new DomainException('Clearance notes are too long.');
         }
@@ -218,6 +235,7 @@ final class Clearance
         try {
             $scope = "requirement.office = :office";
             $parameters = ['item_id' => $itemId, 'office' => $office];
+
             if ($office === 'Department') {
                 if ($departmentId === null) {
                     throw new DomainException('Your account is not assigned to a department.');
@@ -226,6 +244,7 @@ final class Clearance
                 $scope .= " AND (requirement_department.dept_type <> 'Academic' OR program.department_id = requirement.department_id)";
                 $parameters['department_id'] = $departmentId;
             }
+
             $lookup = $this->db->prepare(
                 "SELECT item.id, item.status, requirement.name AS requirement_name,
                         clearance.id AS clearance_id, student.id AS student_id, student.user_id,
@@ -244,17 +263,21 @@ final class Clearance
                  INNER JOIN programs program ON program.id = student.program_id
                  WHERE item.id = :item_id AND $scope FOR UPDATE"
             );
+
             $lookup->execute($parameters);
             $item = $lookup->fetch();
+
             if (!$item) {
                 throw new DomainException('This clearance item is not assigned to your office.');
             }
 
             if ($office === 'Cashier' && $status === 'Approved') {
                 $hasOutstandingBalance = (float) $item['outstanding_balance'] > 0;
+
                 if ($hasOutstandingBalance && $settlementReference === '') {
                     throw new DomainException('Enter the receipt or payment reference for this student before clearing the balance.');
                 }
+
                 if ($settlementReference !== '') {
                     $referenceCheck = $this->db->prepare(
                         "SELECT payment.id
@@ -269,6 +292,7 @@ final class Clearance
                         'receipt_no' => $settlementReference,
                         'reference_no' => $settlementReference,
                     ]);
+
                     if (!$referenceCheck->fetchColumn()) {
                         throw new DomainException('That receipt or payment reference does not belong to this student.');
                     }
@@ -276,9 +300,11 @@ final class Clearance
             }
 
             $storedRemarks = trim($remarks);
+
             if ($office === 'Cashier' && $status === 'Approved' && $settlementReference !== '') {
                 $storedRemarks = $settlementReference . ($storedRemarks !== '' ? ' — ' . $storedRemarks : '');
             }
+
             if (strlen($storedRemarks) > 255) {
                 throw new DomainException('Clearance notes are too long.');
             }
@@ -299,12 +325,16 @@ final class Clearance
             ]);
 
             $this->refreshOverallStatus((int) $item['clearance_id']);
+
             $message = 'Your ' . $item['requirement_name'] . ' clearance was ' . strtolower($status) . '.';
+
             if ($status === 'Rejected') {
                 $message .= ' Reason: ' . trim($reason);
             }
+
             $notify = $this->db->prepare("INSERT INTO notifications (user_id, category, title, message) VALUES (:user_id, 'Clearance', :title, :message)");
             $notify->execute(['user_id' => $item['user_id'], 'title' => 'Clearance status updated', 'message' => $message]);
+
             $audit = $this->db->prepare('INSERT INTO audit_logs (user_id, action, entity, entity_id, details, ip_address) VALUES (:user_id, :action, \'clearance_items\', :entity_id, :details, :ip_address)');
             $audit->execute([
                 'user_id' => $reviewerId,
@@ -313,11 +343,13 @@ final class Clearance
                 'details' => $office . ' office ' . strtolower($status) . ' ' . $item['requirement_name'] . ($status === 'Rejected' ? ': ' . trim($reason) : ''),
                 'ip_address' => substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45),
             ]);
+
             $this->db->commit();
         } catch (Throwable $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+
             throw $exception;
         }
     }
@@ -337,11 +369,15 @@ final class Clearance
                     OR requirement_department.dept_type <> 'Academic'
                     OR requirement.department_id = program.department_id)"
         );
+
         $statement->execute(['clearance_id' => $clearanceId]);
+
         $counts = $statement->fetch();
+
         $overall = (int) $counts['total'] > 0 && (int) $counts['approved'] === (int) $counts['total']
             ? 'Cleared'
             : ((int) $counts['rejected'] > 0 ? 'Action Needed' : 'In Progress');
+
         $update = $this->db->prepare('UPDATE clearances SET overall_status = :status WHERE id = :id');
         $update->execute(['status' => $overall, 'id' => $clearanceId]);
     }
@@ -354,6 +390,7 @@ final class Clearance
 
         $clearanceIds = array_values(array_unique(array_map('intval', $clearanceIds)));
         $placeholders = implode(',', array_fill(0, count($clearanceIds), '?'));
+
         $statement = $this->db->prepare(
             "SELECT item.clearance_id, item.id AS item_id, item.status, item.remarks, item.rejection_reason,
                     item.submitted_at, item.reviewed_at, requirement.id AS requirement_id,
@@ -371,12 +408,15 @@ final class Clearance
                     OR requirement.department_id = program.department_id)
              ORDER BY FIELD(requirement.office, 'Registrar', 'Cashier', 'Department'), department.name, requirement.name"
         );
+
         $statement->execute($clearanceIds);
 
         $itemsByClearance = [];
+
         foreach ($statement->fetchAll() as $item) {
             $itemsByClearance[(int) $item['clearance_id']][] = $item;
         }
+
         return $itemsByClearance;
     }
 
@@ -416,6 +456,7 @@ final class Clearance
                    ELSE 'In Progress'
                END)"
         );
+
         $statement->execute([
             'aggregate_term_id' => $termId,
             'update_term_id' => $termId,

@@ -48,6 +48,7 @@ final class RegistrarReports
                    AND (:released_to = \'\' OR DATE(grade.released_at) <= :released_to_match)) AS released_grade_count
              FROM programs program WHERE (:program_id = 0 OR program.id = :program_id_match)
              ORDER BY program.name';
+
         $statement = $this->db->prepare($sql);
         $statement->execute([
             'enroll_term' => (int) ($filters['term_id'] ?? 0),
@@ -78,6 +79,7 @@ final class RegistrarReports
             'program_id' => (int) ($filters['program_id'] ?? 0),
             'program_id_match' => (int) ($filters['program_id'] ?? 0),
         ]);
+        
         return $statement->fetchAll();
     }
 }

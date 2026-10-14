@@ -12,12 +12,14 @@ final class DepartmentReports
             'SELECT id, code, name FROM programs WHERE department_id = :department_id ORDER BY name'
         );
         $statement->execute(['department_id' => $departmentId]);
+
         return $statement->fetchAll();
     }
 
     public function getClearanceReport(int $departmentId, ?int $programId = null, ?int $yearLevel = null): array
     {
         $term = $this->db->query('SELECT id, academic_year, semester FROM terms WHERE is_current = 1 LIMIT 1')->fetch();
+        
         if (!$term) {
             return ['term' => null, 'summary' => ['total' => 0, 'cleared' => 0, 'not_cleared' => 0], 'rows' => []];
         }
@@ -56,6 +58,7 @@ final class DepartmentReports
                       student.last_name, student.year_level, program.code, program.name
              ORDER BY student.last_name, student.first_name, student.student_no"
         );
+        
         $statement->execute($parameters);
         $rows = [];
         foreach ($statement->fetchAll() as $row) {

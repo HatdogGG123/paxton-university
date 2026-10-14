@@ -1,10 +1,9 @@
 <?php
+
 /** User-scoped notification inbox operations. */
 final class Notifications
 {
-    public function __construct(private PDO $db)
-    {
-    }
+    public function __construct(private PDO $db) {}
 
     public function getForUser(int $userId, int $limit = 100): array
     {
@@ -15,6 +14,7 @@ final class Notifications
              ORDER BY is_read ASC, created_at DESC, id DESC LIMIT $limit"
         );
         $statement->execute(['user_id' => $userId]);
+
         return $statement->fetchAll();
     }
 
@@ -27,6 +27,7 @@ final class Notifications
              ORDER BY created_at DESC, id DESC LIMIT $limit"
         );
         $statement->execute(['user_id' => $userId]);
+
         return $statement->fetchAll();
     }
 
@@ -34,10 +35,10 @@ final class Notifications
     {
         $statement = $this->db->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND is_read = 0');
         $statement->execute(['user_id' => $userId]);
+
         return (int) $statement->fetchColumn();
     }
 
-    /** Backfill alerts for active cashier queue items, including requests that predate event notifications. */
     public function syncCashierPaymentQueue(int $userId): void
     {
         $statement = $this->db->prepare(

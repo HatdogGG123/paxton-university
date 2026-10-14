@@ -1,18 +1,13 @@
 <?php
-/** Document request and registrar workflow data access. */
 final class DocumentRequests
 {
-    public function __construct(private PDO $db)
-    {
-    }
+    public function __construct(private PDO $db) {}
 
-    /** List request types students can currently request. */
     public function getActiveTypes(): array
     {
         return $this->db->query('SELECT id, code, name, description, fee FROM document_types WHERE is_active = 1 ORDER BY name')->fetchAll();
     }
 
-    /** List a student's request history with payment status. */
     public function getStudentRequests(int $userId): array
     {
         $statement = $this->db->prepare(
@@ -30,39 +25,60 @@ final class DocumentRequests
         return $statement->fetchAll();
     }
 
-    /** Create a request and its unpaid payment record when a fee applies. */
     public function create(int $userId, int $typeId, string $purpose, int $copies, string $remarks): string
     {
         $allowedPurposes = ['Employment', 'Further Studies / Transfer', 'Scholarship Application', 'Visa / Travel Requirements', 'Other'];
-        if (!in_array($purpose, $allowedPurposes, true)) { throw new DomainException('Choose a valid request purpose.'); }
-        if ($copies < 1 || $copies > 10) { throw new DomainException('Request between 1 and 10 copies.'); }
-        if (strlen($remarks) > 500) { throw new DomainException('Additional notes must be 500 characters or fewer.'); }
+
+        if (!in_array($purpose, $allowedPurposes, true)) {
+            throw new DomainException('Choose a valid request purpose.');
+        }
+        if ($copies < 1 || $copies > 10) {
+            throw new DomainException('Request between 1 and 10 copies.');
+        }
+        if (strlen($remarks) > 500) {
+            throw new DomainException('Additional notes must be 500 characters or fewer.');
+        }
 
         $this->db->beginTransaction();
         try {
             $studentLookup = $this->db->prepare('SELECT id FROM students WHERE user_id = :user_id LIMIT 1 FOR UPDATE');
             $studentLookup->execute(['user_id' => $userId]);
             $studentId = $studentLookup->fetchColumn();
-            if ($studentId === false) { throw new DomainException('No student profile is linked to this account.'); }
+            if ($studentId === false) {
+                throw new DomainException('No student profile is linked to this account.');
+            }
 
             $typeLookup = $this->db->prepare('SELECT id, name, fee FROM document_types WHERE id = :id AND is_active = 1 LIMIT 1 FOR UPDATE');
             $typeLookup->execute(['id' => $typeId]);
             $type = $typeLookup->fetch();
-            if (!$type) { throw new DomainException('This document type is no longer available. Refresh the page and choose another.'); }
+            if (!$type) {
+                throw new DomainException('This document type is no longer available. Refresh the page and choose another.');
+            }
 
             $temporaryNo = 'TMP' . bin2hex(random_bytes(6));
             $insert = $this->db->prepare(
                 'INSERT INTO document_requests (request_no, student_id, document_type_id, purpose, copies, remarks, fee_amount, status)
                  VALUES (:request_no, :student_id, :type_id, :purpose, :copies, :remarks, :fee, \'Pending\')'
             );
+
             $fee = number_format((float) $type['fee'], 2, '.', '');
             $insert->execute([
-                'request_no' => $temporaryNo, 'student_id' => $studentId, 'type_id' => $typeId,
-                'purpose' => $purpose, 'copies' => $copies, 'remarks' => trim($remarks) === '' ? null : trim($remarks), 'fee' => $fee,
+                'request_no' => $temporaryNo,
+                'student_id' => $studentId,
+                'type_id' => $typeId,
+                'purpose' => $purpose,
+                'copies' => $copies,
+                'remarks' => trim($remarks) === '' ? null : trim($remarks),
+                'fee' => $fee,
             ]);
+
             $requestId = (int) $this->db->lastInsertId();
             $requestNo = 'DR-' . date('Y') . '-' . str_pad((string) $requestId, 4, '0', STR_PAD_LEFT);
-            if (strlen($requestNo) > 15) { throw new DomainException('The request number limit has been reached. Contact the system administrator.'); }
+
+            if (strlen($requestNo) > 15) {
+                throw new DomainException('The request number limit has been reached. Contact the system administrator.');
+            }
+
             $updateNo = $this->db->prepare('UPDATE document_requests SET request_no = :request_no WHERE id = :id');
             $updateNo->execute(['request_no' => $requestNo, 'id' => $requestId]);
 
@@ -74,14 +90,17 @@ final class DocumentRequests
             $this->notifyRegistrars('New document request submitted', 'A student submitted ' . $requestNo . ' for ' . $type['name'] . '.', '/php/registrar/documentRequest.php');
             $this->audit($userId, 'DOCUMENT_REQUEST_SUBMITTED', $requestId, $requestNo . ' submitted for ' . $type['name'] . '.');
             $this->db->commit();
+
             return $requestNo;
         } catch (Throwable $exception) {
-            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
             throw $exception;
         }
     }
 
-    /** Return the registrar queue and payment state. */
     public function getRegistrarQueue(): array
     {
         return $this->db->query(
@@ -114,11 +133,18 @@ final class DocumentRequests
                 'Ready for Release' => ['Completed'],
                 default => [],
             };
-            if (!in_array($nextStatus, $allowed, true)) { throw new DomainException('That status change is not allowed for this request. Refresh the queue and try again.'); }
+
+            if (!in_array($nextStatus, $allowed, true)) {
+                throw new DomainException('That status change is not allowed for this request. Refresh the queue and try again.');
+            }
+
             if ($nextStatus === 'Processing' && $request['status'] === 'Paid' && $request['payment_status'] !== 'Paid') {
                 throw new DomainException('The payment must be verified before processing this request.');
             }
-            if (strlen($receivedBy) > 120) { throw new DomainException('The claimant name must be 120 characters or fewer.'); }
+
+            if (strlen($receivedBy) > 120) {
+                throw new DomainException('The claimant name must be 120 characters or fewer.');
+            }
 
             if ($nextStatus === 'For Payment' && empty($request['payment_id']) && (float) $request['fee_amount'] > 0) {
                 $amount = number_format((float) $request['fee_amount'] * (int) $request['copies'], 2, '.', '');
@@ -133,12 +159,15 @@ final class DocumentRequests
                  WHERE id = :id'
             );
             $update->execute([
-                'status' => $nextStatus, 'reviewer_id' => $registrarId,
+                'status' => $nextStatus,
+                'reviewer_id' => $registrarId,
                 'received_by' => $nextStatus === 'Completed' && trim($receivedBy) !== '' ? trim($receivedBy) : null,
                 'completed_at' => $nextStatus === 'Completed' ? date('Y-m-d H:i:s') : null,
                 'id' => $request['id'],
             ]);
+
             $this->notifyStudent((int) $request['user_id'], 'Document request updated', $requestNo . ' is now ' . $nextStatus . '.', '/php/student/requests.php');
+
             if ($nextStatus === 'For Payment') {
                 $this->notifyCashiers(
                     'Document request ready for payment',
@@ -146,42 +175,56 @@ final class DocumentRequests
                     '/php/cashier/payments.php'
                 );
             }
+
             $this->audit($registrarId, 'DOCUMENT_REQUEST_STATUS_CHANGED', (int) $request['id'], $requestNo . ' moved from ' . $request['status'] . ' to ' . $nextStatus . '.');
             $this->db->commit();
         } catch (Throwable $exception) {
-            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             throw $exception;
         }
     }
 
-    /** Reject a request before payment with a required reason. */
     public function reject(string $requestNo, int $registrarId, string $reason): void
     {
         $reason = trim($reason);
-        if ($reason === '') { throw new DomainException('A rejection reason is required.'); }
-        if (strlen($reason) > 500) { throw new DomainException('The rejection reason must be 500 characters or fewer.'); }
+
+        if ($reason === '') {
+            throw new DomainException('A rejection reason is required.');
+        }
+
+        if (strlen($reason) > 500) {
+            throw new DomainException('The rejection reason must be 500 characters or fewer.');
+        }
 
         $this->db->beginTransaction();
         try {
             $request = $this->lockRequest($requestNo);
+
             if (!in_array($request['status'], ['Pending', 'Under Review'], true)) {
                 throw new DomainException('Only pending or under-review requests can be rejected.');
             }
+
             if (in_array($request['payment_status'], ['Pending Verification', 'Paid', 'Refunded'], true)) {
                 throw new DomainException('This request has a payment in progress or completed and cannot be rejected here.');
             }
+
             $update = $this->db->prepare("UPDATE document_requests SET status = 'Rejected', rejection_reason = :reason, processed_by = :reviewer_id WHERE id = :id");
             $update->execute(['reason' => $reason, 'reviewer_id' => $registrarId, 'id' => $request['id']]);
+
             $this->notifyStudent((int) $request['user_id'], 'Document request rejected', $requestNo . ' was rejected. Reason: ' . $reason, '/php/student/requests.php');
             $this->audit($registrarId, 'DOCUMENT_REQUEST_REJECTED', (int) $request['id'], $requestNo . ' rejected. Reason: ' . $reason);
             $this->db->commit();
         } catch (Throwable $exception) {
-            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
             throw $exception;
         }
     }
 
-    /** Lock and retrieve a request together with its owning student and payment. */
     private function lockRequest(string $requestNo): array
     {
         $statement = $this->db->prepare(
@@ -193,19 +236,22 @@ final class DocumentRequests
              WHERE request.request_no = :request_no LIMIT 1 FOR UPDATE'
         );
         $statement->execute(['request_no' => $requestNo]);
+
         $request = $statement->fetch();
-        if (!$request) { throw new DomainException('Document request not found.'); }
+
+        if (!$request) {
+            throw new DomainException('Document request not found.');
+        }
+
         return $request;
     }
 
-    /** Notify all active Registrar accounts about a new request. */
     private function notifyRegistrars(string $title, string $message, string $link): void
     {
         $statement = $this->db->prepare("INSERT INTO notifications (user_id, category, title, message, link) SELECT id, 'Requests', :title, :message, :link FROM users WHERE role = 'Registrar' AND status = 'Active'");
         $statement->execute(['title' => $title, 'message' => $message, 'link' => $link]);
     }
 
-    /** Notify active cashiers when a request becomes eligible for collection. */
     private function notifyCashiers(string $title, string $message, string $link): void
     {
         $statement = $this->db->prepare(
@@ -216,19 +262,20 @@ final class DocumentRequests
         $statement->execute(['title' => $title, 'message' => $message, 'link' => $link]);
     }
 
-    /** Notify the student who owns a request. */
     private function notifyStudent(int $userId, string $title, string $message, string $link): void
     {
         $statement = $this->db->prepare("INSERT INTO notifications (user_id, category, title, message, link) VALUES (:user_id, 'Requests', :title, :message, :link)");
         $statement->execute(['user_id' => $userId, 'title' => $title, 'message' => $message, 'link' => $link]);
     }
 
-    /** Write an audit log entry for a request action. */
     private function audit(int $userId, string $action, int $requestId, string $details): void
     {
         $statement = $this->db->prepare("INSERT INTO audit_logs (user_id, action, entity, entity_id, details, ip_address) VALUES (:user_id, :action, 'document_requests', :entity_id, :details, :ip_address)");
         $statement->execute([
-            'user_id' => $userId, 'action' => $action, 'entity_id' => $requestId, 'details' => $details,
+            'user_id' => $userId,
+            'action' => $action,
+            'entity_id' => $requestId,
+            'details' => $details,
             'ip_address' => substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45),
         ]);
     }

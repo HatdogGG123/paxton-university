@@ -6,6 +6,7 @@ final class CashierDashboard
     public function getData(): array
     {
         $term = $this->db->query('SELECT id, semester, academic_year FROM terms WHERE is_current = 1 LIMIT 1')->fetch() ?: null;
+
         $today = $this->db->query(
             "SELECT COALESCE(SUM(amount), 0) AS total,
                     COUNT(*) AS transaction_count
@@ -24,6 +25,7 @@ final class CashierDashboard
              WHERE payment.status = 'Pending Verification'
              ORDER BY payment.submitted_at ASC, payment.id ASC LIMIT 5"
         );
+
         $pendingPayments = $pendingQuery->fetchAll();
         $pendingCount = (int) $this->db->query("SELECT COUNT(*) FROM payments WHERE status = 'Pending Verification'")->fetchColumn();
 
@@ -34,6 +36,7 @@ final class CashierDashboard
         )->fetchColumn();
 
         $clearance = ['pending_reviews' => 0, 'cleared_students' => 0, 'action_needed_students' => 0];
+
         if ($term) {
             $clearanceQuery = $this->db->prepare(
                 "SELECT clearance.id AS clearance_id,
@@ -63,10 +66,13 @@ final class CashierDashboard
                  WHERE clearance.term_id = :term_id
                  GROUP BY clearance.id, clearance.student_id"
             );
+
             $clearanceQuery->execute(['term_id' => (int) $term['id']]);
+
             foreach ($clearanceQuery->fetchAll() as $record) {
                 $total = (int) $record['requirement_count'];
                 $approved = (int) $record['approved_count'];
+
                 if ($total > 0 && $approved === $total) {
                     $clearance['cleared_students']++;
                 } elseif ((int) $record['rejected_count'] > 0) {
