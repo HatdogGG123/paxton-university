@@ -1,12 +1,11 @@
 <?php
+
 /** Validates profile form input and delegates changes to the profile model. */
 require_once __DIR__ . '/../models/StudentProfile.php';
 
 final class StudentProfileService
 {
-    public function __construct(private StudentProfile $profile)
-    {
-    }
+    public function __construct(private StudentProfile $profile) {}
 
     /** Validate and save a contact information form submission. */
     public function updateContact(int $userId, array $input): array
@@ -42,8 +41,10 @@ final class StudentProfileService
         if ($currentPassword === '') {
             return ['success' => false, 'message' => 'Enter your current password.'];
         }
-        if (strlen($newPassword) < 8 || strlen($newPassword) > 255
-            || !preg_match('/[A-Za-z]/', $newPassword) || !preg_match('/[0-9]/', $newPassword)) {
+        if (
+            strlen($newPassword) < 8 || strlen($newPassword) > 255
+            || !preg_match('/[A-Za-z]/', $newPassword) || !preg_match('/[0-9]/', $newPassword)
+        ) {
             return ['success' => false, 'message' => 'Your new password must be at least 8 characters and include a letter and a number.'];
         }
         if (!hash_equals($newPassword, $confirmation)) {

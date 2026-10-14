@@ -1,12 +1,11 @@
 <?php
+
 /** Validate student and Registrar document request submissions. */
 require_once __DIR__ . '/../models/DocumentRequests.php';
 
 final class DocumentRequestsService
 {
-    public function __construct(private DocumentRequests $requests)
-    {
-    }
+    public function __construct(private DocumentRequests $requests) {}
 
     /** Create a student request using only validated form values. */
     public function submitStudentRequest(int $userId, array $input): string
@@ -25,7 +24,9 @@ final class DocumentRequestsService
             'visa' => 'Visa / Travel Requirements',
             'other' => 'Other',
         ];
-        if (!isset($purposeLabels[$purpose])) { throw new DomainException('Choose a valid request purpose.'); }
+        if (!isset($purposeLabels[$purpose])) {
+            throw new DomainException('Choose a valid request purpose.');
+        }
         return $this->requests->create($userId, $typeId, $purposeLabels[$purpose], $copies, trim($remarks));
     }
 
@@ -35,8 +36,10 @@ final class DocumentRequestsService
         $requestNo = $input['request_no'] ?? '';
         $status = $input['status'] ?? '';
         $receivedBy = $input['received_by'] ?? '';
-        if (!is_string($requestNo) || !preg_match('/^DR-[0-9]{4}-[0-9]{4,7}$/', $requestNo)
-            || !is_string($status) || !is_string($receivedBy)) {
+        if (
+            !is_string($requestNo) || !preg_match('/^DR-[0-9]{4}-[0-9]{4,7}$/', $requestNo)
+            || !is_string($status) || !is_string($receivedBy)
+        ) {
             throw new DomainException('The document request update is invalid. Refresh the page and try again.');
         }
         $this->requests->transition($requestNo, $registrarId, $status, trim($receivedBy));
@@ -56,9 +59,13 @@ final class DocumentRequestsService
     /** Parse an integer greater than zero from form data. */
     private function positiveInteger(mixed $value): ?int
     {
-        if (!is_string($value) && !is_int($value)) { return null; }
+        if (!is_string($value) && !is_int($value)) {
+            return null;
+        }
         $value = (string) $value;
-        if ($value === '' || !ctype_digit($value)) { return null; }
+        if ($value === '' || !ctype_digit($value)) {
+            return null;
+        }
         $number = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         return $number === false ? null : $number;
     }

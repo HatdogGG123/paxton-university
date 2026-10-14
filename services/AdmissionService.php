@@ -36,7 +36,7 @@ final class AdmissionService
         if ($this->admission->emailInUse($data['email'])) {
             throw new DomainException('This email is already associated with an account or application. Use another email address or sign in to your existing account.');
         }
-        
+
         return $this->admission->submit($data, bin2hex(random_bytes(8)));
     }
 }

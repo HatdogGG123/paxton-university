@@ -1,12 +1,11 @@
 <?php
+
 /** Validates clearance actions and exposes role-scoped clearance data. */
 require_once __DIR__ . '/../models/Clearance.php';
 
 final class ClearanceService
 {
-    public function __construct(private Clearance $clearance)
-    {
-    }
+    public function __construct(private Clearance $clearance) {}
 
     public function review(int $reviewerId, string $office, ?int $departmentId, array $input): void
     {
@@ -26,9 +25,13 @@ final class ClearanceService
 
     private function positiveInteger(mixed $value): ?int
     {
-        if (!is_string($value) && !is_int($value)) { return null; }
+        if (!is_string($value) && !is_int($value)) {
+            return null;
+        }
         $value = (string) $value;
-        if ($value === '' || !ctype_digit($value)) { return null; }
+        if ($value === '' || !ctype_digit($value)) {
+            return null;
+        }
         $number = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         return $number === false ? null : $number;
     }

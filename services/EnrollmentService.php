@@ -1,12 +1,11 @@
 <?php
+
 /** Validates enrollment form input and delegates request changes to its model. */
 require_once __DIR__ . '/../models/Enrollment.php';
 
 final class EnrollmentService
 {
-    public function __construct(private Enrollment $enrollment)
-    {
-    }
+    public function __construct(private Enrollment $enrollment) {}
 
     /** Validate and submit a student's selected subjects for the current term. */
     public function submitStudentRequest(int $userId, array $input): string

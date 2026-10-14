@@ -1,12 +1,11 @@
 <?php
+
 /** Validates grade entry and student grade query input. */
 require_once __DIR__ . '/../models/Grades.php';
 
 final class GradesService
 {
-    public function __construct(private Grades $grades)
-    {
-    }
+    public function __construct(private Grades $grades) {}
 
     public function getStudentGrades(int $userId, mixed $rawTermId): array
     {
