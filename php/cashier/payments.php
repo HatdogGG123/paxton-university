@@ -1,57 +1,76 @@
 <?php
-    require_once __DIR__ . '/../includes/auth.php';
-    ssis_require_role('cashier');
-    require_once __DIR__ . '/../../services/PaymentsService.php';
-    if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
-    $paymentModel = new Payments(Database::getConnection());
-    $paymentController = new PaymentsService($paymentModel);
-    $notice = $_SESSION['cashier_payment_notice'] ?? null;
-    unset($_SESSION['cashier_payment_notice']);
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        try {
-            $token = $_POST['csrf_token'] ?? '';
-            if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) { throw new DomainException('This form expired. Refresh the page and try again.'); }
-            $receipt = $paymentController->handle((int) $_SESSION['user']['id'], $_POST);
-            $receiptPaymentId = $receipt !== '' ? (int) ($_POST['payment_id'] ?? 0) : 0;
-            $_SESSION['cashier_payment_notice'] = [
-                'success' => true,
-                'message' => $receipt !== '' ? 'Payment processed successfully. Receipt ' . $receipt . ' generated.' : 'Payment status updated successfully.',
-                'receipt_payment_id' => $receiptPaymentId > 0 ? $receiptPaymentId : null,
-            ];
-            header('Location: payments.php'); exit;
-        } catch (DomainException $exception) { $notice = ['success' => false, 'message' => $exception->getMessage()]; }
-        catch (Throwable $exception) { error_log('SSIS cashier payment action failed: ' . $exception->getMessage()); $notice = ['success' => false, 'message' => 'We could not process this payment. Please try again.']; }
-    }
+require_once __DIR__ . '/../includes/auth.php';
+ssis_require_role('cashier');
+require_once __DIR__ . '/../../services/PaymentsService.php';
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$paymentModel = new Payments(Database::getConnection());
+$paymentController = new PaymentsService($paymentModel);
+$notice = $_SESSION['cashier_payment_notice'] ?? null;
+unset($_SESSION['cashier_payment_notice']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $paymentQueue = $paymentModel->getQueue();
-        $walkInEligible = $paymentModel->getWalkInEligible();
-        $transactions = $paymentModel->getTransactions();
-        $isValidDate = static function (mixed $value): bool {
-            if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) { return false; }
-            $date = DateTime::createFromFormat('!Y-m-d', $value);
-            return $date !== false && $date->format('Y-m-d') === $value;
-        };
-        $reportFrom = $isValidDate($_GET['date_from'] ?? null) ? $_GET['date_from'] : date('Y-m-01');
-        $reportTo = $isValidDate($_GET['date_to'] ?? null) ? $_GET['date_to'] : date('Y-m-d');
-        if ($reportTo < $reportFrom) { $reportTo = $reportFrom; }
-        $report = $paymentModel->getCollectionReport($reportFrom, $reportTo);
-        $reportTransactions = $paymentModel->getCollectionReportTransactions($reportFrom, $reportTo);
-    } catch (Throwable $exception) { error_log('SSIS cashier payments page failed: ' . $exception->getMessage()); http_response_code(503); exit('Payment information is temporarily unavailable. Please try again later.'); }
-    $esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
-    $cashierName = trim((string) ($_SESSION['user']['full_name'] ?? ''));
-    if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'] ?? 'Cashier'); }
-    if (($_GET['export'] ?? '') === 'csv') {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="ssis-collection-report-' . $reportFrom . '-to-' . $reportTo . '.csv"');
-        $output = fopen('php://output', 'wb');
-        fwrite($output, "\xEF\xBB\xBF");
-        fputcsv($output, ['Receipt No', 'Request No', 'Student No', 'Student Name', 'Method', 'Reference No', 'Amount', 'Verified At']);
-        foreach ($reportTransactions as $row) {
-            fputcsv($output, [$row['receipt_no'], $row['request_no'], $row['student_no'], $row['student_name'], $row['method'], $row['reference_number'], $row['amount'], $row['verified_at']]);
+        $token = $_POST['csrf_token'] ?? '';
+        if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
+            throw new DomainException('This form expired. Refresh the page and try again.');
         }
-        fclose($output);
+        $receipt = $paymentController->handle((int) $_SESSION['user']['id'], $_POST);
+        $receiptPaymentId = $receipt !== '' ? (int) ($_POST['payment_id'] ?? 0) : 0;
+        $_SESSION['cashier_payment_notice'] = [
+            'success' => true,
+            'message' => $receipt !== '' ? 'Payment processed successfully. Receipt ' . $receipt . ' generated.' : 'Payment status updated successfully.',
+            'receipt_payment_id' => $receiptPaymentId > 0 ? $receiptPaymentId : null,
+        ];
+        header('Location: payments.php');
         exit;
+    } catch (DomainException $exception) {
+        $notice = ['success' => false, 'message' => $exception->getMessage()];
+    } catch (Throwable $exception) {
+        error_log('SSIS cashier payment action failed: ' . $exception->getMessage());
+        $notice = ['success' => false, 'message' => 'We could not process this payment. Please try again.'];
     }
+}
+try {
+    $paymentQueue = $paymentModel->getQueue();
+    $walkInEligible = $paymentModel->getWalkInEligible();
+    $transactions = $paymentModel->getTransactions();
+    $isValidDate = static function (mixed $value): bool {
+        if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return false;
+        }
+        $date = DateTime::createFromFormat('!Y-m-d', $value);
+        return $date !== false && $date->format('Y-m-d') === $value;
+    };
+    $reportFrom = $isValidDate($_GET['date_from'] ?? null) ? $_GET['date_from'] : date('Y-m-01');
+    $reportTo = $isValidDate($_GET['date_to'] ?? null) ? $_GET['date_to'] : date('Y-m-d');
+    if ($reportTo < $reportFrom) {
+        $reportTo = $reportFrom;
+    }
+    $report = $paymentModel->getCollectionReport($reportFrom, $reportTo);
+    $reportTransactions = $paymentModel->getCollectionReportTransactions($reportFrom, $reportTo);
+} catch (Throwable $exception) {
+    error_log('SSIS cashier payments page failed: ' . $exception->getMessage());
+    http_response_code(503);
+    exit('Payment information is temporarily unavailable. Please try again later.');
+}
+$esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$cashierName = trim((string) ($_SESSION['user']['full_name'] ?? ''));
+if ($cashierName === '') {
+    $cashierName = (string) ($_SESSION['user']['username'] ?? 'Cashier');
+}
+if (($_GET['export'] ?? '') === 'csv') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="ssis-collection-report-' . $reportFrom . '-to-' . $reportTo . '.csv"');
+    $output = fopen('php://output', 'wb');
+    fwrite($output, "\xEF\xBB\xBF");
+    fputcsv($output, ['Receipt No', 'Request No', 'Student No', 'Student Name', 'Method', 'Reference No', 'Amount', 'Verified At']);
+    foreach ($reportTransactions as $row) {
+        fputcsv($output, [$row['receipt_no'], $row['request_no'], $row['student_no'], $row['student_name'], $row['method'], $row['reference_number'], $row['amount'], $row['verified_at']]);
+    }
+    fclose($output);
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -97,7 +116,7 @@
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Top Navigation Bar -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -204,7 +223,7 @@
             <div class="bg-white border border-gray-200 rounded-md p-4 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Search Record</label>
-                <input type="text" id="filter_search" placeholder="Student ID, Name, or DR No..." class="w-full pl-3 pr-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-primary">
+                    <input type="text" id="filter_search" placeholder="Student ID, Name, or DR No..." class="w-full pl-3 pr-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-primary">
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Status</label>
@@ -257,17 +276,30 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
-                            <?php foreach ($paymentQueue as $payment): $studentName = trim($payment['first_name'] . ' ' . $payment['middle_name'] . ' ' . $payment['last_name']); $docLabel = $payment['document_name'] . ' (' . $payment['copies'] . ' copies)'; $filterText = strtolower($payment['request_no'] . ' ' . $payment['student_no'] . ' ' . $studentName); ?>
-                            <tr class="hover:bg-gray-50/50 transition-colors" data-payment-id="<?= (int) $payment['payment_id'] ?>" data-record="<?= $esc($filterText) ?>" data-status="<?= $esc($payment['payment_status']) ?>" data-method="<?= $esc($payment['method']) ?>">
-                                <td class="py-3 px-3 w-28 font-display font-bold text-brand-dark whitespace-nowrap"><?= $esc($payment['request_no']) ?></td>
-                                <td class="py-3 px-3 min-w-[130px] max-w-[160px]"><div class="font-bold text-brand-dark truncate"><?= $esc($studentName) ?></div><div class="text-[10px] text-gray-500"><?= $esc($payment['student_no']) ?></div></td>
-                                <td class="py-3 px-3 min-w-[130px] max-w-[160px]"><div class="truncate text-gray-600"><?= $esc($docLabel) ?></div></td>
-                                <td class="py-3 px-3 min-w-[140px] max-w-[180px]"><div class="truncate text-gray-600"><?= $esc($payment['method'] ?: 'Not submitted') ?><?= $payment['reference_number'] ? ' · ' . $esc($payment['reference_number']) : '' ?></div><div class="text-[10px] text-gray-500"><?= $esc($payment['payment_status']) ?></div></td>
-                                <td class="py-3 px-3 min-w-[140px] max-w-[180px]">₱<?= number_format((float) $payment['amount'], 2) ?></td>
-                                <td class="py-3 px-3 w-32 text-right whitespace-nowrap space-x-1"><?php if ($payment['payment_status'] === 'Pending Verification'): ?><button type="button" onclick='openVerifyModal(<?= (int) $payment['payment_id'] ?>, <?= json_encode($payment['request_no'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= json_encode($studentName . ' (' . $payment['student_no'] . ')', JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= json_encode($docLabel, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= json_encode($payment['method'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= json_encode($payment['reference_number'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= (float) $payment['amount'] ?>)' class="px-2 py-1 bg-blue-600 text-white rounded text-[11px] font-semibold">Review</button><?php elseif (in_array($payment['payment_status'], ['Unpaid', 'Rejected'], true) && $payment['request_status'] === 'For Payment'): ?><button type="button" onclick="openWalkInForPayment(<?= (int) $payment['payment_id'] ?>)" class="px-2 py-1 bg-brand-primary text-white rounded text-[11px] font-semibold">Record Payment</button><?php elseif ($payment['payment_status'] === 'Paid' && $payment['receipt_no']): ?><a href="receipt.php?id=<?= (int) $payment['payment_id'] ?>" target="_blank" rel="noopener" class="px-2 py-1 border border-gray-200 text-brand-primary rounded text-[11px] font-semibold">Print Receipt</a><?php else: ?><span class="text-[10px] text-gray-500"><?= $esc($payment['payment_status']) ?></span><?php endif; ?></td>
-                            </tr>
+                            <?php foreach ($paymentQueue as $payment): $studentName = trim($payment['first_name'] . ' ' . $payment['middle_name'] . ' ' . $payment['last_name']);
+                                $docLabel = $payment['document_name'] . ' (' . $payment['copies'] . ' copies)';
+                                $filterText = strtolower($payment['request_no'] . ' ' . $payment['student_no'] . ' ' . $studentName); ?>
+                                <tr class="hover:bg-gray-50/50 transition-colors" data-payment-id="<?= (int) $payment['payment_id'] ?>" data-record="<?= $esc($filterText) ?>" data-status="<?= $esc($payment['payment_status']) ?>" data-method="<?= $esc($payment['method']) ?>">
+                                    <td class="py-3 px-3 w-28 font-display font-bold text-brand-dark whitespace-nowrap"><?= $esc($payment['request_no']) ?></td>
+                                    <td class="py-3 px-3 min-w-[130px] max-w-[160px]">
+                                        <div class="font-bold text-brand-dark truncate"><?= $esc($studentName) ?></div>
+                                        <div class="text-[10px] text-gray-500"><?= $esc($payment['student_no']) ?></div>
+                                    </td>
+                                    <td class="py-3 px-3 min-w-[130px] max-w-[160px]">
+                                        <div class="truncate text-gray-600"><?= $esc($docLabel) ?></div>
+                                    </td>
+                                    <td class="py-3 px-3 min-w-[140px] max-w-[180px]">
+                                        <div class="truncate text-gray-600"><?= $esc($payment['method'] ?: 'Not submitted') ?><?= $payment['reference_number'] ? ' · ' . $esc($payment['reference_number']) : '' ?></div>
+                                        <div class="text-[10px] text-gray-500"><?= $esc($payment['payment_status']) ?></div>
+                                    </td>
+                                    <td class="py-3 px-3 min-w-[140px] max-w-[180px]">₱<?= number_format((float) $payment['amount'], 2) ?></td>
+                                    <td class="py-3 px-3 w-32 text-right whitespace-nowrap space-x-1"><?php if ($payment['payment_status'] === 'Pending Verification'): ?><button type="button" onclick='openVerifyModal(<?= (int) $payment['payment_id'] ?>, <?= json_encode($payment['request_no'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= json_encode($studentName . ' (' . $payment['student_no'] . ')', JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= json_encode($docLabel, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= json_encode($payment['method'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= json_encode($payment['reference_number'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) ?>, <?= (float) $payment['amount'] ?>)' class="px-2 py-1 bg-blue-600 text-white rounded text-[11px] font-semibold">Review</button><?php elseif (in_array($payment['payment_status'], ['Unpaid', 'Rejected'], true) && $payment['request_status'] === 'For Payment'): ?><button type="button" onclick="openWalkInForPayment(<?= (int) $payment['payment_id'] ?>)" class="px-2 py-1 bg-brand-primary text-white rounded text-[11px] font-semibold">Record Payment</button><?php elseif ($payment['payment_status'] === 'Paid' && $payment['receipt_no']): ?><a href="receipt.php?id=<?= (int) $payment['payment_id'] ?>" target="_blank" rel="noopener" class="px-2 py-1 border border-gray-200 text-brand-primary rounded text-[11px] font-semibold">Print Receipt</a><?php else: ?><span class="text-[10px] text-gray-500"><?= $esc($payment['payment_status']) ?></span><?php endif; ?></td>
+                                </tr>
                             <?php endforeach; ?>
-                            <?php if (!$paymentQueue): ?><tr><td colspan="6" class="py-8 px-3 text-center text-gray-500">No document payments found.</td></tr><?php endif; ?></tbody>
+                            <?php if (!$paymentQueue): ?><tr>
+                                    <td colspan="6" class="py-8 px-3 text-center text-gray-500">No document payments found.</td>
+                                </tr><?php endif; ?>
+                        </tbody>
                     </table>
                 </div>
 
@@ -296,17 +328,19 @@
                         </thead>
                         <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
                             <?php foreach ($transactions as $transaction): ?>
-                            <tr class="hover:bg-gray-50/50">
-                                <td class="py-3 px-4 font-display font-bold text-brand-dark"><?= $esc($transaction['receipt_no']) ?></td>
-                                <td class="py-3 px-4"><?= $esc($transaction['request_no']) ?></td>
-                                <td class="py-3 px-4"><?= $esc($transaction['student_name']) ?></td>
-                                <td class="py-3 px-4 font-display text-gray-500"><?= $esc($transaction['reference_number'] ?: 'N/A (Walk-in)') ?></td>
-                                <td class="py-3 px-4"><?= $esc($transaction['method']) ?></td>
-                                <td class="py-3 px-4 text-right font-bold">₱<?= number_format((float) $transaction['amount'], 2) ?></td>
-                                <td class="py-3 px-4 text-right space-x-2"><a href="receipt.php?id=<?= (int) $transaction['payment_id'] ?>" target="_blank" rel="noopener" class="text-brand-primary font-semibold hover:underline">Print</a><?php if ($transaction['payment_status'] === 'Paid' && in_array($transaction['request_status'], ['Cancelled', 'Rejected'], true)): ?><button type="button" onclick="openRefundModal(<?= (int) $transaction['payment_id'] ?>, <?= json_encode($transaction['request_no'], JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode($transaction['receipt_no'], JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= (float) $transaction['amount'] ?>)" class="text-red-600 font-semibold hover:underline">Refund</button><?php endif; ?></td>
-                            </tr>
+                                <tr class="hover:bg-gray-50/50">
+                                    <td class="py-3 px-4 font-display font-bold text-brand-dark"><?= $esc($transaction['receipt_no']) ?></td>
+                                    <td class="py-3 px-4"><?= $esc($transaction['request_no']) ?></td>
+                                    <td class="py-3 px-4"><?= $esc($transaction['student_name']) ?></td>
+                                    <td class="py-3 px-4 font-display text-gray-500"><?= $esc($transaction['reference_number'] ?: 'N/A (Walk-in)') ?></td>
+                                    <td class="py-3 px-4"><?= $esc($transaction['method']) ?></td>
+                                    <td class="py-3 px-4 text-right font-bold">₱<?= number_format((float) $transaction['amount'], 2) ?></td>
+                                    <td class="py-3 px-4 text-right space-x-2"><a href="receipt.php?id=<?= (int) $transaction['payment_id'] ?>" target="_blank" rel="noopener" class="text-brand-primary font-semibold hover:underline">Print</a><?php if ($transaction['payment_status'] === 'Paid' && in_array($transaction['request_status'], ['Cancelled', 'Rejected'], true)): ?><button type="button" onclick="openRefundModal(<?= (int) $transaction['payment_id'] ?>, <?= json_encode($transaction['request_no'], JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode($transaction['receipt_no'], JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= (float) $transaction['amount'] ?>)" class="text-red-600 font-semibold hover:underline">Refund</button><?php endif; ?></td>
+                                </tr>
                             <?php endforeach; ?>
-                            <?php if (!$transactions): ?><tr><td colspan="7" class="py-8 px-4 text-center text-gray-500">No completed payment transactions yet.</td></tr><?php endif; ?>
+                            <?php if (!$transactions): ?><tr>
+                                    <td colspan="7" class="py-8 px-4 text-center text-gray-500">No completed payment transactions yet.</td>
+                                </tr><?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -331,7 +365,7 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
                     <button type="button" onclick="window.print()" class="px-3 py-1 border border-gray-200 text-gray-700 rounded text-xs font-semibold hover:bg-gray-50">Print Report</button>
-                <button type="submit" name="export" value="csv" class="px-3 py-1 border border-gray-200 text-gray-700 rounded text-xs font-semibold hover:bg-gray-50">Export CSV</button>
+                    <button type="submit" name="export" value="csv" class="px-3 py-1 border border-gray-200 text-gray-700 rounded text-xs font-semibold hover:bg-gray-50">Export CSV</button>
                 </div>
             </form>
 
@@ -357,10 +391,30 @@
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs border-collapse">
-                        <thead><tr class="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase tracking-wider font-semibold"><th class="py-3 px-4">Receipt</th><th class="py-3 px-4">Request</th><th class="py-3 px-4">Student</th><th class="py-3 px-4">Method</th><th class="py-3 px-4">Reference</th><th class="py-3 px-4">Verified</th><th class="py-3 px-4 text-right">Amount</th></tr></thead>
+                        <thead>
+                            <tr class="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase tracking-wider font-semibold">
+                                <th class="py-3 px-4">Receipt</th>
+                                <th class="py-3 px-4">Request</th>
+                                <th class="py-3 px-4">Student</th>
+                                <th class="py-3 px-4">Method</th>
+                                <th class="py-3 px-4">Reference</th>
+                                <th class="py-3 px-4">Verified</th>
+                                <th class="py-3 px-4 text-right">Amount</th>
+                            </tr>
+                        </thead>
                         <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
-                            <?php foreach ($reportTransactions as $row): ?><tr><td class="py-3 px-4 font-bold"><?= $esc($row['receipt_no']) ?></td><td class="py-3 px-4"><?= $esc($row['request_no']) ?></td><td class="py-3 px-4"><?= $esc($row['student_name']) ?> <span class="text-gray-500">(<?= $esc($row['student_no']) ?>)</span></td><td class="py-3 px-4"><?= $esc($row['method']) ?></td><td class="py-3 px-4"><?= $esc($row['reference_number'] ?: 'Walk-in') ?></td><td class="py-3 px-4"><?= $esc($row['verified_at']) ?></td><td class="py-3 px-4 text-right font-bold">₱<?= number_format((float) $row['amount'], 2) ?></td></tr><?php endforeach; ?>
-                            <?php if (!$reportTransactions): ?><tr><td colspan="7" class="py-8 px-4 text-center text-gray-500">No paid transactions in this date range.</td></tr><?php endif; ?>
+                            <?php foreach ($reportTransactions as $row): ?><tr>
+                                    <td class="py-3 px-4 font-bold"><?= $esc($row['receipt_no']) ?></td>
+                                    <td class="py-3 px-4"><?= $esc($row['request_no']) ?></td>
+                                    <td class="py-3 px-4"><?= $esc($row['student_name']) ?> <span class="text-gray-500">(<?= $esc($row['student_no']) ?>)</span></td>
+                                    <td class="py-3 px-4"><?= $esc($row['method']) ?></td>
+                                    <td class="py-3 px-4"><?= $esc($row['reference_number'] ?: 'Walk-in') ?></td>
+                                    <td class="py-3 px-4"><?= $esc($row['verified_at']) ?></td>
+                                    <td class="py-3 px-4 text-right font-bold">₱<?= number_format((float) $row['amount'], 2) ?></td>
+                                </tr><?php endforeach; ?>
+                            <?php if (!$reportTransactions): ?><tr>
+                                    <td colspan="7" class="py-8 px-4 text-center text-gray-500">No paid transactions in this date range.</td>
+                                </tr><?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -617,8 +671,9 @@
     </footer>
 
     <!-- Interactive Scripts -->
-    
-    <?php if ($notice): $paymentToastMessage = $esc($notice['message']); if (!empty($notice['receipt_payment_id'])) $paymentToastMessage .= ' <a class="underline font-bold" target="_blank" rel="noopener" href="receipt.php?id=' . (int) $notice['receipt_payment_id'] . '">Print receipt</a>'; ?>showToast(<?= json_encode(!empty($notice['success']) ? 'success' : 'error') ?>, <?= json_encode($paymentToastMessage, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);<?php endif; ?>
+
+    <?php if ($notice): $paymentToastMessage = $esc($notice['message']);
+        if (!empty($notice['receipt_payment_id'])) $paymentToastMessage .= ' <a class="underline font-bold" target="_blank" rel="noopener" href="receipt.php?id=' . (int) $notice['receipt_payment_id'] . '">Print receipt</a>'; ?>showToast(<?= json_encode(!empty($notice['success']) ? 'success' : 'error') ?>, <?= json_encode($paymentToastMessage, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);<?php endif; ?>
     <script>
         $(document).ready(function() {
             lucide.createIcons();
@@ -753,124 +808,160 @@
         }
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function ($) {
-    if (!$) return;
-    $(document).on('submit', 'form[method="post"], form[method="POST"]', function (event) {
-        if (event.isDefaultPrevented()) return;
-        event.preventDefault();
-        var form = this;
-        var fields = $(form).serializeArray();
-        if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
-            fields.push({ name: event.originalEvent.submitter.name, value: event.originalEvent.submitter.value });
-        }
-        if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({ name: 'action', value: 'handleUserLogin' });
-        $.post('../../controller/paymentsController.php', $.param(fields), null, 'json')
-            .done(function (response) {
-                if (response && response.status === 'success') {
-                    var redirect = response.data && response.data.redirect;
-                    var action = form.querySelector('[name="payment_action"], [name="action"]')?.value || '';
-                    var paymentId = form.querySelector('[name="payment_id"]')?.value;
-                    var row = document.querySelector('#table_clearance tr[data-payment-id="' + Number(paymentId) + '"]');
-                    if (row) {
-                        var status = /reject/i.test(action) ? 'Rejected' : (/refund/i.test(action) ? 'Refunded' : 'Paid');
-                        row.dataset.status = status;
-                        row.cells[3]?.querySelector('div:last-child')?.replaceChildren(document.createTextNode(status));
-                        var actions = row.cells[5];
-                        if (actions) {
-                            actions.replaceChildren();
-                            if (status === 'Paid' && response.data?.receipt_payment_id) {
-                                var link = document.createElement('a'); link.href = 'receipt.php?id=' + encodeURIComponent(response.data.receipt_payment_id); link.target = '_blank'; link.rel = 'noopener'; link.className = 'px-2 py-1 border border-gray-200 text-brand-primary rounded text-[11px] font-semibold'; link.textContent = 'Print Receipt'; actions.appendChild(link);
-                            } else actions.textContent = status;
+    <script>
+        (function($) {
+            if (!$) return;
+            $(document).on('submit', 'form[method="post"], form[method="POST"]', function(event) {
+                if (event.isDefaultPrevented()) return;
+                event.preventDefault();
+                var form = this;
+                var fields = $(form).serializeArray();
+                if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
+                    fields.push({
+                        name: event.originalEvent.submitter.name,
+                        value: event.originalEvent.submitter.value
+                    });
+                }
+                if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({
+                    name: 'action',
+                    value: 'handleUserLogin'
+                });
+                $.post('../../controller/paymentsController.php', $.param(fields), null, 'json')
+                    .done(function(response) {
+                        if (response && response.status === 'success') {
+                            var redirect = response.data && response.data.redirect;
+                            var action = form.querySelector('[name="payment_action"], [name="action"]')?.value || '';
+                            var paymentId = form.querySelector('[name="payment_id"]')?.value;
+                            var row = document.querySelector('#table_clearance tr[data-payment-id="' + Number(paymentId) + '"]');
+                            if (row) {
+                                var status = /reject/i.test(action) ? 'Rejected' : (/refund/i.test(action) ? 'Refunded' : 'Paid');
+                                row.dataset.status = status;
+                                row.cells[3]?.querySelector('div:last-child')?.replaceChildren(document.createTextNode(status));
+                                var actions = row.cells[5];
+                                if (actions) {
+                                    actions.replaceChildren();
+                                    if (status === 'Paid' && response.data?.receipt_payment_id) {
+                                        var link = document.createElement('a');
+                                        link.href = 'receipt.php?id=' + encodeURIComponent(response.data.receipt_payment_id);
+                                        link.target = '_blank';
+                                        link.rel = 'noopener';
+                                        link.className = 'px-2 py-1 border border-gray-200 text-brand-primary rounded text-[11px] font-semibold';
+                                        link.textContent = 'Print Receipt';
+                                        actions.appendChild(link);
+                                    } else actions.textContent = status;
+                                }
+                            }
+                            $('#modal_verify_payment, #modal_walkin_payment, #modal_reject_payment, #modal_refund_payment').addClass('hidden');
+                            if (form.id === 'form_walkin_payment') resetWalkInPaymentForm();
+                            if (response.data?.receipt_payment_id) {
+                                window.location.assign('payments.php?tab=transactions');
+                                return;
+                            }
+                            showToast('success', response.message || 'Payment updated successfully.');
+                        } else {
+                            var message = response && response.message ? response.message : 'The action could not be completed.';
+                            showToast('error', message);
                         }
-                    }
-                    $('#modal_verify_payment, #modal_walkin_payment, #modal_reject_payment, #modal_refund_payment').addClass('hidden');
-                    if (form.id === 'form_walkin_payment') resetWalkInPaymentForm();
-                    if (response.data?.receipt_payment_id) {
-                        window.location.assign('payments.php?tab=transactions');
-                        return;
-                    }
-                    showToast('success', response.message || 'Payment updated successfully.');
-                } else {
-                    var message = response && response.message ? response.message : 'The action could not be completed.';
-                    showToast('error', message);
-                }
-            })
-            .fail(function (xhr) {
-                var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
-                showToast('error', message);
-                if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
-                    var button = document.getElementById('btn-submit');
-                    if (button) { button.disabled = false; button.classList.remove('opacity-80', 'cursor-not-allowed'); button.innerHTML = 'Sign In'; }
-                }
+                    })
+                    .fail(function(xhr) {
+                        var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
+                        showToast('error', message);
+                        if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
+                            var button = document.getElementById('btn-submit');
+                            if (button) {
+                                button.disabled = false;
+                                button.classList.remove('opacity-80', 'cursor-not-allowed');
+                                button.innerHTML = 'Sign In';
+                            }
+                        }
+                    });
             });
-    });
-    var nativeSubmit = HTMLFormElement.prototype.submit;
-    HTMLFormElement.prototype.submit = function () {
-        if ((this.method || 'get').toLowerCase() === 'post') { this.requestSubmit(); return; }
-        nativeSubmit.call(this);
-    };
-})(window.jQuery);
-</script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+            var nativeSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function() {
+                if ((this.method || 'get').toLowerCase() === 'post') {
+                    this.requestSubmit();
+                    return;
+                }
+                nativeSubmit.call(this);
+            };
+        })(window.jQuery);
+    </script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>

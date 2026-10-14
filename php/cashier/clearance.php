@@ -2,7 +2,9 @@
 require_once __DIR__ . '/../includes/auth.php';
 ssis_require_role('cashier');
 require_once __DIR__ . '/../../services/ClearanceService.php';
-if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 $clearanceModel = new Clearance(Database::getConnection());
 $clearanceController = new ClearanceService($clearanceModel);
 $notice = $_SESSION['cashier_clearance_notice'] ?? null;
@@ -10,7 +12,9 @@ unset($_SESSION['cashier_clearance_notice']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $token = $_POST['csrf_token'] ?? '';
-        if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) { throw new DomainException('This form expired. Refresh the page and try again.'); }
+        if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
+            throw new DomainException('This form expired. Refresh the page and try again.');
+        }
         $clearanceController->review((int) $_SESSION['user']['id'], 'Cashier', null, $_POST);
         $_SESSION['cashier_clearance_notice'] = ['success' => true, 'message' => 'Cashier clearance updated.'];
         header('Location: clearance.php');
@@ -28,19 +32,27 @@ try {
         $clearanceModel->ensureTermClearances((int) $term['id']);
         $queue = $clearanceModel->getOfficeQueue((int) $term['id'], 'Cashier');
         $summary = $clearanceModel->getSummary((int) $term['id']);
-    } else { $queue = []; $summary = ['total' => 0, 'cleared' => 0, 'action_needed' => 0, 'in_progress' => 0]; }
+    } else {
+        $queue = [];
+        $summary = ['total' => 0, 'cleared' => 0, 'action_needed' => 0, 'in_progress' => 0];
+    }
 } catch (Throwable $exception) {
     error_log('SSIS cashier clearance page failed: ' . $exception->getMessage());
     http_response_code(503);
     exit('Clearance information is temporarily unavailable. Please try again later.');
 }
-$esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 $cashierQueue = [];
 $cashierCounts = ['Approved' => 0, 'Rejected' => 0, 'Pending' => 0];
-foreach ($queue as $item) { $cashierQueue[(int) $item['item_id']] = $item; $cashierCounts[$item['status']] = ($cashierCounts[$item['status']] ?? 0) + 1; }
+foreach ($queue as $item) {
+    $cashierQueue[(int) $item['item_id']] = $item;
+    $cashierCounts[$item['status']] = ($cashierCounts[$item['status']] ?? 0) + 1;
+}
 $termLabel = $term ? $term['semester'] . ' ' . $term['academic_year'] : 'No current term';
 $cashierName = trim((string) ($_SESSION['user']['full_name'] ?? ''));
-if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'] ?? 'Cashier'); }
+if ($cashierName === '') {
+    $cashierName = (string) ($_SESSION['user']['username'] ?? 'Cashier');
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -87,7 +99,7 @@ if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Top Navigation Bar -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -260,18 +272,32 @@ if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
-                        <?php foreach ($queue as $item): $status = $item['status']; $year = (int) $item['year_level']; $yearText = $year === 1 ? '1st Yr' : ($year === 2 ? '2nd Yr' : ($year === 3 ? '3rd Yr' : $year . 'th Yr')); $statusText = $status === 'Approved' ? 'Cleared' : ($status === 'Rejected' ? 'Uncleared (Hold)' : 'Pending Review'); $statusStyle = $status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : ($status === 'Rejected' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'); $reason = $status === 'Rejected' ? ($item['rejection_reason'] ?: $item['requirement_name']) : $item['requirement_name']; ?>
-                        <tr class="hover:bg-gray-50/50 transition-colors" data-student="<?= $esc($item['student_no'] . ' ' . $item['student_name']) ?>" data-student-name="<?= $esc($item['student_name']) ?>" data-student-no="<?= $esc($item['student_no']) ?>" data-item-id="<?= (int) $item['item_id'] ?>" data-outstanding="<?= number_format((float) $item['outstanding_balance'], 2, '.', '') ?>" data-program="<?= $esc($item['program_code']) ?>" data-status="<?= $esc($status) ?>">
-                            <td class="py-3 px-3 font-display font-bold text-brand-dark whitespace-nowrap"><?= $esc($item['student_no']) ?></td>
-                            <td class="py-3 px-3 min-w-[130px] max-w-[160px]"><div class="font-bold text-brand-dark truncate" title="<?= $esc($item['student_name']) ?>"><?= $esc($item['student_name']) ?></div></td>
-                            <td class="py-3 px-3 min-w-[140px] max-w-[180px]"><div class="truncate text-gray-600" title="<?= $esc($item['program_name'] . ' (' . $yearText . ')') ?>"><?= $esc($item['program_name']) ?> (<?= $esc($yearText) ?>)</div></td>
-                            <td class="py-3 px-3 text-right font-bold <?= (float) $item['outstanding_balance'] > 0 ? 'text-red-700' : 'text-emerald-700' ?> whitespace-nowrap">₱<?= number_format((float) $item['outstanding_balance'], 2) ?></td>
-                            <td class="py-3 px-3 min-w-[160px] max-w-[220px]"><div class="font-semibold text-gray-800 truncate" title="<?= $esc($reason) ?>"><?= $esc($reason) ?></div><div class="text-[10px] text-gray-500 truncate"><?= $status === 'Approved' ? 'Settlement: ' . $esc($item['remarks']) : $esc($item['description']) ?></div></td>
-                            <td class="py-3 px-3 text-center whitespace-nowrap"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold <?= $statusStyle ?>"><?= $esc($statusText) ?></span></td>
-                            <td class="py-3 px-3 text-right whitespace-nowrap space-x-1"><?php if ($status !== 'Approved'): ?><button type="button" class="js-clear-cashier-item px-2 py-1 bg-emerald-700 text-white rounded text-[11px] font-semibold hover:bg-emerald-800 transition-colors">Clear</button><?php endif; ?><?php if ($status === 'Pending'): ?><button type="button" class="js-reject-cashier-item px-2 py-1 border border-red-200 text-red-700 rounded text-[11px] font-semibold hover:bg-red-50">Reject</button><?php endif; ?></td>
-                        </tr>
+                        <?php foreach ($queue as $item): $status = $item['status'];
+                            $year = (int) $item['year_level'];
+                            $yearText = $year === 1 ? '1st Yr' : ($year === 2 ? '2nd Yr' : ($year === 3 ? '3rd Yr' : $year . 'th Yr'));
+                            $statusText = $status === 'Approved' ? 'Cleared' : ($status === 'Rejected' ? 'Uncleared (Hold)' : 'Pending Review');
+                            $statusStyle = $status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : ($status === 'Rejected' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800');
+                            $reason = $status === 'Rejected' ? ($item['rejection_reason'] ?: $item['requirement_name']) : $item['requirement_name']; ?>
+                            <tr class="hover:bg-gray-50/50 transition-colors" data-student="<?= $esc($item['student_no'] . ' ' . $item['student_name']) ?>" data-student-name="<?= $esc($item['student_name']) ?>" data-student-no="<?= $esc($item['student_no']) ?>" data-item-id="<?= (int) $item['item_id'] ?>" data-outstanding="<?= number_format((float) $item['outstanding_balance'], 2, '.', '') ?>" data-program="<?= $esc($item['program_code']) ?>" data-status="<?= $esc($status) ?>">
+                                <td class="py-3 px-3 font-display font-bold text-brand-dark whitespace-nowrap"><?= $esc($item['student_no']) ?></td>
+                                <td class="py-3 px-3 min-w-[130px] max-w-[160px]">
+                                    <div class="font-bold text-brand-dark truncate" title="<?= $esc($item['student_name']) ?>"><?= $esc($item['student_name']) ?></div>
+                                </td>
+                                <td class="py-3 px-3 min-w-[140px] max-w-[180px]">
+                                    <div class="truncate text-gray-600" title="<?= $esc($item['program_name'] . ' (' . $yearText . ')') ?>"><?= $esc($item['program_name']) ?> (<?= $esc($yearText) ?>)</div>
+                                </td>
+                                <td class="py-3 px-3 text-right font-bold <?= (float) $item['outstanding_balance'] > 0 ? 'text-red-700' : 'text-emerald-700' ?> whitespace-nowrap">₱<?= number_format((float) $item['outstanding_balance'], 2) ?></td>
+                                <td class="py-3 px-3 min-w-[160px] max-w-[220px]">
+                                    <div class="font-semibold text-gray-800 truncate" title="<?= $esc($reason) ?>"><?= $esc($reason) ?></div>
+                                    <div class="text-[10px] text-gray-500 truncate"><?= $status === 'Approved' ? 'Settlement: ' . $esc($item['remarks']) : $esc($item['description']) ?></div>
+                                </td>
+                                <td class="py-3 px-3 text-center whitespace-nowrap"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold <?= $statusStyle ?>"><?= $esc($statusText) ?></span></td>
+                                <td class="py-3 px-3 text-right whitespace-nowrap space-x-1"><?php if ($status !== 'Approved'): ?><button type="button" class="js-clear-cashier-item px-2 py-1 bg-emerald-700 text-white rounded text-[11px] font-semibold hover:bg-emerald-800 transition-colors">Clear</button><?php endif; ?><?php if ($status === 'Pending'): ?><button type="button" class="js-reject-cashier-item px-2 py-1 border border-red-200 text-red-700 rounded text-[11px] font-semibold hover:bg-red-50">Reject</button><?php endif; ?></td>
+                            </tr>
                         <?php endforeach; ?>
-                        <?php if (!$queue): ?><tr><td colspan="7" class="py-8 px-3 text-center text-gray-500">No cashier clearance items found for this term.</td></tr><?php endif; ?>
+                        <?php if (!$queue): ?><tr>
+                                <td colspan="7" class="py-8 px-3 text-center text-gray-500">No cashier clearance items found for this term.</td>
+                            </tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -394,24 +420,37 @@ if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'
         $(document).ready(function() {
             lucide.createIcons();
             $('#filter_search, #filter_status, #filter_program').on('input change', filterCashierTable);
+
             $('#btn_reset_filters').on('click', function() {
                 $('#filter_search, #filter_status, #filter_program').val('');
                 filterCashierTable();
             });
-            $('#mobile_menu_btn').on('click', function() { $('#mobile_menu').toggleClass('hidden'); });
-            $('.close-modal').on('click', function() { $('.fixed.inset-0').addClass('hidden'); });
+
+            $('#mobile_menu_btn').on('click', function() {
+                $('#mobile_menu').toggleClass('hidden');
+            });
+
+            $('.close-modal').on('click', function() {
+                $('.fixed.inset-0').addClass('hidden');
+            });
+
             $('#table_clearance').on('click', '.js-clear-cashier-item', function() {
                 const row = $(this).closest('tr');
                 openReleaseModal(row.attr('data-item-id'), row.attr('data-student-name'), row.attr('data-student-no'), row.attr('data-outstanding'));
             });
+
             $('#table_clearance').on('click', '.js-reject-cashier-item', function() {
                 const row = $(this).closest('tr');
                 openRejectClearanceModal(row.attr('data-item-id'), row.attr('data-student-name'));
             });
+
             $('#form_reject_clearance').on('submit', function(event) {
                 event.preventDefault();
                 const reason = $('#reject_clearance_reason').val().trim();
-                if (!reason) { $('#reject_clearance_reason').trigger('focus'); return; }
+                if (!reason) {
+                    $('#reject_clearance_reason').trigger('focus');
+                    return;
+                }
                 $('#cashier_post_item_id').val($('#reject_clearance_item_id').val());
                 const postForm = $('#cashier_clearance_post');
                 postForm.find('[name="status"]').val('Rejected');
@@ -419,16 +458,21 @@ if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'
                 $('#cashier_post_remarks').val('');
                 postForm.get(0).submit();
             });
+
             $('#form_issue_hold').on('submit', function(event) {
                 event.preventDefault();
                 $('#modal_issue_hold').addClass('hidden');
                 showToast('error', 'Financial hold issue is not available from this page.');
             });
+
             $('#form_release_hold').on('submit', function(event) {
                 event.preventDefault();
                 const reference = $('#release_reference').val().trim();
                 const balance = parseFloat($('#lbl_release_amount').attr('data-balance') || '0');
-                if (balance > 0 && !reference) { $('#release_reference').trigger('focus'); return; }
+                if (balance > 0 && !reference) {
+                    $('#release_reference').trigger('focus');
+                    return;
+                }
                 $('#cashier_post_item_id').val($('#release_hold_id').val());
                 const extraRemarks = $('#release_remarks').val().trim();
                 $('#cashier_post_settlement_reference').val(reference);
@@ -448,9 +492,9 @@ if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'
             table.dataset.localPage = '1';
             $('#table_clearance tbody tr[data-student]').each(function() {
                 const row = $(this);
-                const visible = row.data('student').toLowerCase().includes(query)
-                    && (!status || row.data('status') === status)
-                    && (!program || row.data('program') === program);
+                const visible = row.data('student').toLowerCase().includes(query) &&
+                    (!status || row.data('status') === status) &&
+                    (!program || row.data('program') === program);
                 this.style.display = visible ? 'table-row' : 'none';
             });
         }
@@ -486,116 +530,150 @@ if ($cashierName === '') { $cashierName = (string) ($_SESSION['user']['username'
             $('#modal_clearance_details').removeClass('hidden');
         }
 
-        <?php if ($notice): ?>showToast("<?= !empty($notice['success']) ? 'success' : 'error' ?>", <?= json_encode($notice['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);<?php endif; ?>
+        <?php if ($notice): ?>showToast("<?= !empty($notice['success']) ? 'success' : 'error' ?>", <?= json_encode($notice['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
+        <?php endif; ?>
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function ($) {
-    if (!$) return;
-    $(document).on('submit', 'form[method="post"], form[method="POST"]', function (event) {
-        if (event.isDefaultPrevented()) return;
-        event.preventDefault();
-        var form = this;
-        var fields = $(form).serializeArray();
-        if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
-            fields.push({ name: event.originalEvent.submitter.name, value: event.originalEvent.submitter.value });
-        }
-        if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({ name: 'action', value: 'handleUserLogin' });
-        $.post('../../controller/clearanceController.php', $.param(fields), null, 'json')
-            .done(function (response) {
-                if (response && response.status === 'success') {
-                    var itemId = form.querySelector('[name="item_id"]')?.value;
-                    var status = form.querySelector('[name="status"]')?.value;
-                    var row = document.querySelector('#table_clearance tr[data-item-id="' + Number(itemId) + '"]');
-                    if (row && status) {
-                        row.dataset.status = status;
-                        var badge = row.cells[5]?.querySelector('span');
-                        if (badge) { badge.textContent = status === 'Approved' ? 'Cleared' : 'Uncleared (Hold)'; badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ' + (status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'); }
-                        if (row.cells[6]) row.cells[6].textContent = 'Reviewed';
-                    }
-                    $('#modal_release_hold, #modal_reject_clearance').addClass('hidden');
-                    showToast('success', response.message || 'Clearance request updated.');
-                    return;
-                } else {
-                    var message = response && response.message ? response.message : 'The action could not be completed.';
-                    showToast('error', message);
+    <script>
+        (function($) {
+            if (!$) return;
+            $(document).on('submit', 'form[method="post"], form[method="POST"]', function(event) {
+                if (event.isDefaultPrevented()) return;
+                event.preventDefault();
+                var form = this;
+                var fields = $(form).serializeArray();
+                if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
+                    fields.push({
+                        name: event.originalEvent.submitter.name,
+                        value: event.originalEvent.submitter.value
+                    });
                 }
-            })
-            .fail(function (xhr) {
-                var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
-                showToast('error', message);
-                if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
-                    var button = document.getElementById('btn-submit');
-                    if (button) { button.disabled = false; button.classList.remove('opacity-80', 'cursor-not-allowed'); button.innerHTML = 'Sign In'; }
-                }
+                if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({
+                    name: 'action',
+                    value: 'handleUserLogin'
+                });
+                $.post('../../controller/clearanceController.php', $.param(fields), null, 'json')
+                    .done(function(response) {
+                        if (response && response.status === 'success') {
+                            var itemId = form.querySelector('[name="item_id"]')?.value;
+                            var status = form.querySelector('[name="status"]')?.value;
+                            var row = document.querySelector('#table_clearance tr[data-item-id="' + Number(itemId) + '"]');
+                            if (row && status) {
+                                row.dataset.status = status;
+                                var badge = row.cells[5]?.querySelector('span');
+                                if (badge) {
+                                    badge.textContent = status === 'Approved' ? 'Cleared' : 'Uncleared (Hold)';
+                                    badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ' + (status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800');
+                                }
+                                if (row.cells[6]) row.cells[6].textContent = 'Reviewed';
+                            }
+                            $('#modal_release_hold, #modal_reject_clearance').addClass('hidden');
+                            showToast('success', response.message || 'Clearance request updated.');
+                            return;
+                        } else {
+                            var message = response && response.message ? response.message : 'The action could not be completed.';
+                            showToast('error', message);
+                        }
+                    })
+                    .fail(function(xhr) {
+                        var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
+                        showToast('error', message);
+                        if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
+                            var button = document.getElementById('btn-submit');
+                            if (button) {
+                                button.disabled = false;
+                                button.classList.remove('opacity-80', 'cursor-not-allowed');
+                                button.innerHTML = 'Sign In';
+                            }
+                        }
+                    });
             });
-    });
-    var nativeSubmit = HTMLFormElement.prototype.submit;
-    HTMLFormElement.prototype.submit = function () {
-        if ((this.method || 'get').toLowerCase() === 'post') { this.requestSubmit(); return; }
-        nativeSubmit.call(this);
-    };
-})(window.jQuery);
-</script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+            var nativeSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function() {
+                if ((this.method || 'get').toLowerCase() === 'post') {
+                    this.requestSubmit();
+                    return;
+                }
+                nativeSubmit.call(this);
+            };
+        })(window.jQuery);
+    </script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>
