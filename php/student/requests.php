@@ -337,19 +337,19 @@ $studentName = trim(implode(' ', array_filter([$studentProfile['first_name'], $s
                     var cells = [response.data && response.data.request_no || response.message.match(/DR-[A-Z0-9-]+/)?.[0] || 'New request', (selected ? selected.textContent.split(' - ')[0] : 'Document') + (quantity > 1 ? ' (' + quantity + ' copies)' : ''), new Date().toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}), fee > 0 ? 'Unpaid' : 'No payment required', 'Pending', form.querySelector('[name="remarks"]').value.trim() || '—'];
                     cells.forEach((value, index) => { var cell = document.createElement('td'); cell.className = 'py-3.5 px-5' + (index === 0 ? ' font-bold text-brand-dark' : '') + (index === 2 ? ' text-gray-500' : '') + (index === 3 || index === 4 ? ' text-center text-gray-700' : '') + (index === 5 ? ' text-right text-gray-500' : ''); cell.textContent = value; row.appendChild(cell); });
                     body.prepend(row);
+                    // The shared table pager may have the history table on a later page.
+                    // Return it to page one so the newly submitted request is visible.
+                    document.querySelector('#table_requests_history').dataset.localPage = '1';
                     form.reset();
                     updateEstimatedFee();
-                    showToast('success', response.message || 'Document request submitted.');
                 } else {
                     var message = response && response.message ? response.message : 'The action could not be completed.';
                     showToast('error', message);
-                    button.disabled = false;
-                    button.classList.remove('opacity-60', 'cursor-not-allowed');
-                    button.innerHTML = originalButtonHtml;
                 }
             }).fail(function (xhr) {
                 var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
                 showToast('error', message);
+            }).always(function () {
                 button.disabled = false;
                 button.classList.remove('opacity-60', 'cursor-not-allowed');
                 button.innerHTML = originalButtonHtml;
