@@ -62,10 +62,10 @@
 
                     <!-- Apply Now Button -->
                     <div class="flex flex-wrap gap-3">
-                    <a href="application.php" class="inline-flex items-center justify-center border border-brand-accent text-brand-accent font-semibold px-8 py-3.5 rounded-full hover:bg-brand-accent hover:text-brand-dark transition text-sm">Apply Now</a>
-                    <a href="login.php" class="inline-flex items-center justify-center bg-brand-accent text-brand-dark font-semibold px-8 py-3.5 rounded-full hover:bg-white transition shadow-lg text-sm">
-                        Login Now
-                    </a>
+                        <a href="application.php" class="inline-flex items-center justify-center border border-brand-accent text-brand-accent font-semibold px-8 py-3.5 rounded-full hover:bg-brand-accent hover:text-brand-dark transition text-sm">Apply Now</a>
+                        <a href="login.php" class="inline-flex items-center justify-center bg-brand-accent text-brand-dark font-semibold px-8 py-3.5 rounded-full hover:bg-white transition shadow-lg text-sm">
+                            Login Now
+                        </a>
                     </div>
                 </div>
 

@@ -95,7 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p class="text-xs text-brand-primary font-medium">Please enter your details</p>
                 </div>
 
-                <?php if (isset($_GET['error'])): ?><script>showToast('error', <?= json_encode($_GET['error'] === 'unavailable' ? 'Sign-in is temporarily unavailable. Please try again later.' : 'Invalid username or password.', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);</script><?php endif; ?>
+                <?php if (isset($_GET['error'])): ?><script>
+                        showToast('error', <?= json_encode($_GET['error'] === 'unavailable' ? 'Sign-in is temporarily unavailable. Please try again later.' : 'Invalid username or password.', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
+                    </script><?php endif; ?>
 
                 <div id="login_lockout_countdown" role="status" aria-live="polite" class="hidden mb-6 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-900"></div>
 
@@ -174,68 +176,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
     </script>
 
-<script>
-(function ($) {
-    if (!$) return;
-    $(document).on('submit', 'form[method="post"], form[method="POST"]', function (event) {
-        if (event.isDefaultPrevented()) return;
-        event.preventDefault();
-        var form = this;
-        var fields = $(form).serializeArray();
-        if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
-            fields.push({ name: event.originalEvent.submitter.name, value: event.originalEvent.submitter.value });
-        }
-        $.post('controller/authController.php', $.param(fields), null, 'json')
-            .done(function (response) {
-                if (response && response.status === 'success') {
-                    var redirect = response.data && response.data.redirect;
-                    if (redirect) window.location.assign(redirect);
-                    else showToast('success', response.message || 'Signed in successfully.');
-                } else {
-                    var message = response && response.message ? response.message : 'The action could not be completed.';
-                    showToast('error', message, 10000);
+    <script>
+        (function($) {
+            if (!$) return;
+            $(document).on('submit', 'form[method="post"], form[method="POST"]', function(event) {
+                if (event.isDefaultPrevented()) return;
+                event.preventDefault();
+                var form = this;
+                var fields = $(form).serializeArray();
+                if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
+                    fields.push({
+                        name: event.originalEvent.submitter.name,
+                        value: event.originalEvent.submitter.value
+                    });
                 }
-            })
-                .fail(function (xhr) {
-                    var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
-                    showToast('error', message, 10000);
-                    var retryAfter = Number(xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.retry_after);
-                    if (retryAfter > 0) startLoginLockoutCountdown(retryAfter);
-                    if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
-                    var button = document.getElementById('btn-submit');
-                    if (button) { button.disabled = false; button.classList.remove('opacity-80', 'cursor-not-allowed'); button.innerHTML = 'Sign In'; }
-                }
+                $.post('controller/authController.php', $.param(fields), null, 'json')
+                    .done(function(response) {
+                        if (response && response.status === 'success') {
+                            var redirect = response.data && response.data.redirect;
+                            if (redirect) window.location.assign(redirect);
+                            else showToast('success', response.message || 'Signed in successfully.');
+                        } else {
+                            var message = response && response.message ? response.message : 'The action could not be completed.';
+                            showToast('error', message, 10000);
+                        }
+                    })
+                    .fail(function(xhr) {
+                        var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
+                        showToast('error', message, 10000);
+                        var retryAfter = Number(xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.retry_after);
+                        if (retryAfter > 0) startLoginLockoutCountdown(retryAfter);
+                        if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
+                            var button = document.getElementById('btn-submit');
+                            if (button) {
+                                button.disabled = false;
+                                button.classList.remove('opacity-80', 'cursor-not-allowed');
+                                button.innerHTML = 'Sign In';
+                            }
+                        }
+                    });
             });
-    });
-    var nativeSubmit = HTMLFormElement.prototype.submit;
-    HTMLFormElement.prototype.submit = function () {
-        if ((this.method || 'get').toLowerCase() === 'post') { this.requestSubmit(); return; }
-        nativeSubmit.call(this);
-    };
-    })(window.jQuery);
+            var nativeSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function() {
+                if ((this.method || 'get').toLowerCase() === 'post') {
+                    this.requestSubmit();
+                    return;
+                }
+                nativeSubmit.call(this);
+            };
+        })(window.jQuery);
 
-    function startLoginLockoutCountdown(seconds) {
-        var panel = document.getElementById('login_lockout_countdown');
-        if (!panel) return;
-        panel.classList.remove('hidden');
-        var remaining = Math.max(1, Math.floor(seconds));
-        function render() {
-            var minutes = Math.floor(remaining / 60);
-            var secondsLeft = remaining % 60;
-            panel.textContent = remaining > 0
-                ? 'Login is temporarily locked. You can try again in ' + minutes + ':' + String(secondsLeft).padStart(2, '0') + '.'
-                : 'The login lockout has ended. You can try again now.';
-            if (remaining <= 0) {
-                window.clearInterval(timer);
-                return;
+        function startLoginLockoutCountdown(seconds) {
+            var panel = document.getElementById('login_lockout_countdown');
+            if (!panel) return;
+            panel.classList.remove('hidden');
+            var remaining = Math.max(1, Math.floor(seconds));
+
+            function render() {
+                var minutes = Math.floor(remaining / 60);
+                var secondsLeft = remaining % 60;
+                panel.textContent = remaining > 0 ?
+                    'Login is temporarily locked. You can try again in ' + minutes + ':' + String(secondsLeft).padStart(2, '0') + '.' :
+                    'The login lockout has ended. You can try again now.';
+                if (remaining <= 0) {
+                    window.clearInterval(timer);
+                    return;
+                }
+                remaining--;
             }
-            remaining--;
+            render();
+            var timer = window.setInterval(render, 1000);
         }
-        render();
-        var timer = window.setInterval(render, 1000);
-    }
-</script>
-<?php if (is_array($loginToast)): ?><script>showToast(<?= json_encode($loginToast['type'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>, <?= json_encode($loginToast['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>, 10000);</script><?php endif; ?>
+    </script>
+    <?php if (is_array($loginToast)): ?><script>
+            showToast(<?= json_encode($loginToast['type'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>, <?= json_encode($loginToast['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>, 10000);
+        </script><?php endif; ?>
 </body>
 
 </html>
