@@ -1,20 +1,34 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
 ssis_require_role('student');
+
 require_once __DIR__ . '/../../services/DocumentRequestsService.php';
-if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $requestModel = new DocumentRequests(Database::getConnection());
 $requestController = new DocumentRequestsService($requestModel);
+
 $userId = (int) $_SESSION['user']['id'];
 $notice = $_SESSION['student_request_notice'] ?? null;
+
 unset($_SESSION['student_request_notice']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $token = $_POST['csrf_token'] ?? '';
-        if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) { throw new DomainException('This form expired. Refresh the page and try again.'); }
+        if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
+            throw new DomainException('This form expired. Refresh the page and try again.');
+        }
+
         $requestNo = $requestController->submitStudentRequest($userId, $_POST);
         $_SESSION['student_request_notice'] = ['success' => true, 'message' => 'Request ' . $requestNo . ' was submitted.'];
+
         header('Location: requests.php');
+
         exit;
     } catch (DomainException $exception) {
         $notice = ['success' => false, 'message' => $exception->getMessage()];
@@ -23,20 +37,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $notice = ['success' => false, 'message' => 'We could not submit your request. Please try again.'];
     }
 }
+
 try {
     $types = $requestModel->getActiveTypes();
     $requests = $requestModel->getStudentRequests($userId);
+
     $studentQuery = Database::getConnection()->prepare('SELECT student_no, first_name, middle_name, last_name FROM students WHERE user_id = :user_id LIMIT 1');
     $studentQuery->execute(['user_id' => $userId]);
     $studentProfile = $studentQuery->fetch();
-    if (!$studentProfile) { http_response_code(404); exit('No student profile is linked to this account. Please contact the Registrar.'); }
+
+    if (!$studentProfile) {
+        http_response_code(404);
+        exit('No student profile is linked to this account. Please contact the Registrar.');
+    }
 } catch (Throwable $exception) {
     error_log('SSIS student document requests page failed: ' . $exception->getMessage());
     http_response_code(503);
     exit('Document request information is temporarily unavailable. Please try again later.');
 }
-$esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
-$studentName = trim(implode(' ', array_filter([$studentProfile['first_name'], $studentProfile['middle_name'], $studentProfile['last_name']], static fn ($part): bool => $part !== null && $part !== '')));
+
+$esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$studentName = trim(implode(' ', array_filter([$studentProfile['first_name'], $studentProfile['middle_name'], $studentProfile['last_name']], static fn($part): bool => $part !== null && $part !== '')));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -82,7 +103,7 @@ $studentName = trim(implode(' ', array_filter([$studentProfile['first_name'], $s
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Top Navigation Bar -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -254,17 +275,25 @@ $studentName = trim(implode(' ', array_filter([$studentProfile['first_name'], $s
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
-                        <?php foreach ($requests as $request): $paymentStatus = $request['payment_status'] ?? ((float) $request['fee_amount'] > 0 ? 'Unpaid' : 'No payment required'); $details = $request['status'] === 'Rejected' ? $request['rejection_reason'] : ($request['remarks'] ?: '—'); if ($request['status'] === 'For Payment') { $details = 'Amount due: ₱' . number_format((float) $request['fee_amount'] * (int) $request['copies'], 2); } elseif ($request['receipt_no']) { $details = 'Receipt: ' . $request['receipt_no']; } ?>
-                        <tr class="hover:bg-gray-50/50 transition-colors">
-                            <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $esc($request['request_no']) ?></td>
-                            <td class="py-3.5 px-5"><?= $esc($request['document_name']) ?><?php if ((int) $request['copies'] > 1): ?><span class="text-gray-500"> (<?= (int) $request['copies'] ?> copies)</span><?php endif; ?></td>
-                            <td class="py-3.5 px-5 text-gray-500"><?= $esc(date('M d, Y', strtotime($request['created_at']))) ?></td>
-                            <td class="py-3.5 px-5 text-center text-gray-700"><?= $esc($paymentStatus) ?></td>
-                            <td class="py-3.5 px-5 text-center text-gray-700"><?= $esc($request['status']) ?></td>
-                            <td class="py-3.5 px-5 text-right text-gray-500"><?= $esc($details) ?></td>
-                        </tr>
+                        <?php foreach ($requests as $request): $paymentStatus = $request['payment_status'] ?? ((float) $request['fee_amount'] > 0 ? 'Unpaid' : 'No payment required');
+                            $details = $request['status'] === 'Rejected' ? $request['rejection_reason'] : ($request['remarks'] ?: '—');
+                            if ($request['status'] === 'For Payment') {
+                                $details = 'Amount due: ₱' . number_format((float) $request['fee_amount'] * (int) $request['copies'], 2);
+                            } elseif ($request['receipt_no']) {
+                                $details = 'Receipt: ' . $request['receipt_no'];
+                            } ?>
+                            <tr class="hover:bg-gray-50/50 transition-colors">
+                                <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $esc($request['request_no']) ?></td>
+                                <td class="py-3.5 px-5"><?= $esc($request['document_name']) ?><?php if ((int) $request['copies'] > 1): ?><span class="text-gray-500"> (<?= (int) $request['copies'] ?> copies)</span><?php endif; ?></td>
+                                <td class="py-3.5 px-5 text-gray-500"><?= $esc(date('M d, Y', strtotime($request['created_at']))) ?></td>
+                                <td class="py-3.5 px-5 text-center text-gray-700"><?= $esc($paymentStatus) ?></td>
+                                <td class="py-3.5 px-5 text-center text-gray-700"><?= $esc($request['status']) ?></td>
+                                <td class="py-3.5 px-5 text-right text-gray-500"><?= $esc($details) ?></td>
+                            </tr>
                         <?php endforeach; ?>
-                        <?php if ($requests === []): ?><tr><td colspan="6" class="py-8 px-5 text-center text-gray-500">You have not submitted any document requests.</td></tr><?php endif; ?>
+                        <?php if ($requests === []): ?><tr>
+                                <td colspan="6" class="py-8 px-5 text-center text-gray-500">You have not submitted any document requests.</td>
+                            </tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -285,18 +314,19 @@ $studentName = trim(implode(' ', array_filter([$studentProfile['first_name'], $s
     </footer>
 
     <!-- Interactive Scripts -->
-    
+
     <script>
         $(document).ready(function() {
             lucide.createIcons();
 
             $('#select_document_type, #input_quantity').on('change input', updateEstimatedFee);
             updateEstimatedFee();
-            <?php if ($notice): ?>showToast(<?= json_encode($notice['success'] ? 'success' : 'error') ?>, <?= json_encode($notice['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);<?php endif; ?>
+            <?php if ($notice): ?>showToast(<?= json_encode($notice['success'] ? 'success' : 'error') ?>, <?= json_encode($notice['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
+        <?php endif; ?>
 
-            $('#mobile_menu_btn').on('click', function() {
-                $('#mobile_menu').toggleClass('hidden');
-            });
+        $('#mobile_menu_btn').on('click', function() {
+            $('#mobile_menu').toggleClass('hidden');
+        });
         });
 
         function updateEstimatedFee() {
@@ -306,116 +336,142 @@ $studentName = trim(implode(' ', array_filter([$studentProfile['first_name'], $s
         }
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function ($) {
-    if (!$) return;
-    $('#form_submit_request').on('submit', function (event) {
-        event.preventDefault();
-        var form = this;
-        var button = document.getElementById('btn_submit_request');
-        if (button.disabled) return;
-        var originalButtonHtml = button.innerHTML;
-        button.disabled = true;
-        button.classList.add('opacity-60', 'cursor-not-allowed');
-        button.innerHTML = '<span>Submitting...</span>';
+    <script>
+        (function($) {
+            if (!$) return;
+            $('#form_submit_request').on('submit', function(event) {
+                event.preventDefault();
+                var form = this;
+                var button = document.getElementById('btn_submit_request');
+                if (button.disabled) return;
+                var originalButtonHtml = button.innerHTML;
+                button.disabled = true;
+                button.classList.add('opacity-60', 'cursor-not-allowed');
+                button.innerHTML = '<span>Submitting...</span>';
 
-        $.ajax({
-            url: '../../controller/documentRequestController.php',
-            method: 'POST',
-            data: $(form).serialize(),
-            dataType: 'json'
-        }).done(function (response) {
-                if (response && response.status === 'success') {
-                    showToast('success', response.message || 'Document request submitted.');
-                    var selected = form.querySelector('#select_document_type option:checked');
-                    var quantity = Math.max(1, parseInt(form.querySelector('#input_quantity').value, 10) || 1);
-                    var fee = parseFloat(selected && selected.dataset.fee) || 0;
-                    var body = document.querySelector('#table_requests_history tbody');
-                    body.querySelector('tr td[colspan="6"]')?.closest('tr')?.remove();
-                    var row = document.createElement('tr');
-                    row.className = 'hover:bg-gray-50/50 transition-colors';
-                    var cells = [response.data && response.data.request_no || response.message.match(/DR-[A-Z0-9-]+/)?.[0] || 'New request', (selected ? selected.textContent.split(' - ')[0] : 'Document') + (quantity > 1 ? ' (' + quantity + ' copies)' : ''), new Date().toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}), fee > 0 ? 'Unpaid' : 'No payment required', 'Pending', form.querySelector('[name="remarks"]').value.trim() || '—'];
-                    cells.forEach((value, index) => { var cell = document.createElement('td'); cell.className = 'py-3.5 px-5' + (index === 0 ? ' font-bold text-brand-dark' : '') + (index === 2 ? ' text-gray-500' : '') + (index === 3 || index === 4 ? ' text-center text-gray-700' : '') + (index === 5 ? ' text-right text-gray-500' : ''); cell.textContent = value; row.appendChild(cell); });
-                    body.prepend(row);
-                    // The shared table pager may have the history table on a later page.
-                    // Return it to page one so the newly submitted request is visible.
-                    document.querySelector('#table_requests_history').dataset.localPage = '1';
-                    form.reset();
-                    updateEstimatedFee();
-                } else {
-                    var message = response && response.message ? response.message : 'The action could not be completed.';
+                $.ajax({
+                    url: '../../controller/documentRequestController.php',
+                    method: 'POST',
+                    data: $(form).serialize(),
+                    dataType: 'json'
+                }).done(function(response) {
+                    if (response && response.status === 'success') {
+                        showToast('success', response.message || 'Document request submitted.');
+                        var selected = form.querySelector('#select_document_type option:checked');
+                        var quantity = Math.max(1, parseInt(form.querySelector('#input_quantity').value, 10) || 1);
+                        var fee = parseFloat(selected && selected.dataset.fee) || 0;
+                        var body = document.querySelector('#table_requests_history tbody');
+                        body.querySelector('tr td[colspan="6"]')?.closest('tr')?.remove();
+                        var row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-50/50 transition-colors';
+                        var cells = [response.data && response.data.request_no || response.message.match(/DR-[A-Z0-9-]+/)?.[0] || 'New request', (selected ? selected.textContent.split(' - ')[0] : 'Document') + (quantity > 1 ? ' (' + quantity + ' copies)' : ''), new Date().toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: '2-digit',
+                            year: 'numeric'
+                        }), fee > 0 ? 'Unpaid' : 'No payment required', 'Pending', form.querySelector('[name="remarks"]').value.trim() || '—'];
+                        cells.forEach((value, index) => {
+                            var cell = document.createElement('td');
+                            cell.className = 'py-3.5 px-5' + (index === 0 ? ' font-bold text-brand-dark' : '') + (index === 2 ? ' text-gray-500' : '') + (index === 3 || index === 4 ? ' text-center text-gray-700' : '') + (index === 5 ? ' text-right text-gray-500' : '');
+                            cell.textContent = value;
+                            row.appendChild(cell);
+                        });
+                        body.prepend(row);
+                        // The shared table pager may have the history table on a later page.
+                        // Return it to page one so the newly submitted request is visible.
+                        document.querySelector('#table_requests_history').dataset.localPage = '1';
+                        form.reset();
+                        updateEstimatedFee();
+                    } else {
+                        var message = response && response.message ? response.message : 'The action could not be completed.';
+                        showToast('error', message);
+                    }
+                }).fail(function(xhr) {
+                    var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
                     showToast('error', message);
-                }
-            }).fail(function (xhr) {
-                var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
-                showToast('error', message);
-            }).always(function () {
-                button.disabled = false;
-                button.classList.remove('opacity-60', 'cursor-not-allowed');
-                button.innerHTML = originalButtonHtml;
+                }).always(function() {
+                    button.disabled = false;
+                    button.classList.remove('opacity-60', 'cursor-not-allowed');
+                    button.innerHTML = originalButtonHtml;
+                });
             });
-    });
-})(window.jQuery);
-</script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+        })(window.jQuery);
+    </script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>

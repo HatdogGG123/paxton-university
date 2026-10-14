@@ -8,8 +8,10 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 $userId = (int) $_SESSION['user']['id'];
+
 $profileModel = new StudentProfile(Database::getConnection());
 $profileController = new StudentProfileService($profileModel);
+
 $notice = $_SESSION['student_profile_notice'] ?? null;
 unset($_SESSION['student_profile_notice']);
 $contactFormValues = [];
@@ -58,18 +60,22 @@ if ($profile === null) {
     exit('No student profile is linked to this account. Please contact the Registrar.');
 }
 
-$escape = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$escape = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 $fullName = trim(implode(' ', array_filter([
     $profile['first_name'],
     $profile['middle_name'],
     $profile['last_name'],
-], static fn ($part): bool => $part !== null && $part !== '')));
+], static fn($part): bool => $part !== null && $part !== '')));
+
 $initials = strtoupper(substr($profile['first_name'], 0, 1) . substr($profile['last_name'], 0, 1));
+
 $yearLabels = [1 => '1st Year', 2 => '2nd Year', 3 => '3rd Year', 4 => '4th Year', 5 => '5th Year', 6 => '6th Year'];
 $yearLabel = $yearLabels[(int) $profile['year_level']] ?? ((int) $profile['year_level'] . ' Year');
+
 $admissionTerm = $profile['admission_semester'] && $profile['admission_academic_year']
     ? $profile['admission_semester'] . ', ' . $profile['admission_academic_year']
     : 'Not assigned';
+
 $formEmail = $contactFormValues['email'] ?? $profile['email'] ?? '';
 $formPhone = $contactFormValues['phone_number'] ?? $profile['contact_number'] ?? '';
 $formAddress = $contactFormValues['address'] ?? $profile['address'] ?? '';
@@ -118,7 +124,7 @@ $formAddress = $contactFormValues['address'] ?? $profile['address'] ?? '';
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Top Navigation Bar -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -202,7 +208,9 @@ $formAddress = $contactFormValues['address'] ?? $profile['address'] ?? '';
             <p class="text-sm text-gray-500">View your student information and update your contact details or password.</p>
         </div>
 
-        <?php if ($notice !== null): ?><script>showToast(<?= json_encode($notice['type'] === 'success' ? 'success' : 'error') ?>, <?= json_encode($notice['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);</script><?php endif; ?>
+        <?php if ($notice !== null): ?><script>
+                showToast(<?= json_encode($notice['type'] === 'success' ? 'success' : 'error') ?>, <?= json_encode($notice['message'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
+            </script><?php endif; ?>
 
         <!-- Profile Header Card -->
         <section class="bg-white border border-gray-200 rounded-md p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -324,7 +332,7 @@ $formAddress = $contactFormValues['address'] ?? $profile['address'] ?? '';
     </footer>
 
     <!-- Interactive Scripts -->
-    
+
     <script>
         $(document).ready(function() {
             lucide.createIcons();
@@ -335,47 +343,62 @@ $formAddress = $contactFormValues['address'] ?? $profile['address'] ?? '';
         });
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function ($) {
-    if (!$) return;
-    $(document).on('submit', 'form[method="post"], form[method="POST"]', function (event) {
-        if (event.isDefaultPrevented()) return;
-        event.preventDefault();
-        var form = this;
-        var fields = $(form).serializeArray();
-        if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
-            fields.push({ name: event.originalEvent.submitter.name, value: event.originalEvent.submitter.value });
-        }
-        if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({ name: 'action', value: 'handleUserLogin' });
-        $.post('../../controller/studentProfileController.php', $.param(fields), null, 'json')
-            .done(function (response) {
-                if (response && response.status === 'success') {
-                    var action = form.querySelector('[name="action"]')?.value || '';
-                    if (action.toLowerCase().includes('password')) {
-                        form.querySelectorAll('input[type="password"]').forEach(function (input) { input.value = ''; });
-                    }
-                    showToast('success', response.message || 'Profile updated successfully.');
-                } else {
-                    var message = response && response.message ? response.message : 'The action could not be completed.';
-                    showToast('error', message);
+    <script>
+        (function($) {
+            if (!$) return;
+            $(document).on('submit', 'form[method="post"], form[method="POST"]', function(event) {
+                if (event.isDefaultPrevented()) return;
+                event.preventDefault();
+                var form = this;
+                var fields = $(form).serializeArray();
+                if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
+                    fields.push({
+                        name: event.originalEvent.submitter.name,
+                        value: event.originalEvent.submitter.value
+                    });
                 }
-            })
-            .fail(function (xhr) {
-                var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
-                showToast('error', message);
-                if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
-                    var button = document.getElementById('btn-submit');
-                    if (button) { button.disabled = false; button.classList.remove('opacity-80', 'cursor-not-allowed'); button.innerHTML = 'Sign In'; }
-                }
+                if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({
+                    name: 'action',
+                    value: 'handleUserLogin'
+                });
+                $.post('../../controller/studentProfileController.php', $.param(fields), null, 'json')
+                    .done(function(response) {
+                        if (response && response.status === 'success') {
+                            var action = form.querySelector('[name="action"]')?.value || '';
+                            if (action.toLowerCase().includes('password')) {
+                                form.querySelectorAll('input[type="password"]').forEach(function(input) {
+                                    input.value = '';
+                                });
+                            }
+                            showToast('success', response.message || 'Profile updated successfully.');
+                        } else {
+                            var message = response && response.message ? response.message : 'The action could not be completed.';
+                            showToast('error', message);
+                        }
+                    })
+                    .fail(function(xhr) {
+                        var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
+                        showToast('error', message);
+                        if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
+                            var button = document.getElementById('btn-submit');
+                            if (button) {
+                                button.disabled = false;
+                                button.classList.remove('opacity-80', 'cursor-not-allowed');
+                                button.innerHTML = 'Sign In';
+                            }
+                        }
+                    });
             });
-    });
-    var nativeSubmit = HTMLFormElement.prototype.submit;
-    HTMLFormElement.prototype.submit = function () {
-        if ((this.method || 'get').toLowerCase() === 'post') { this.requestSubmit(); return; }
-        nativeSubmit.call(this);
-    };
-})(window.jQuery);
-</script>
+            var nativeSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function() {
+                if ((this.method || 'get').toLowerCase() === 'post') {
+                    this.requestSubmit();
+                    return;
+                }
+                nativeSubmit.call(this);
+            };
+        })(window.jQuery);
+    </script>
 </body>
 
 </html>

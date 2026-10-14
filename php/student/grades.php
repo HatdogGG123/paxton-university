@@ -2,22 +2,39 @@
 require_once __DIR__ . '/../includes/auth.php';
 ssis_require_role('student');
 require_once __DIR__ . '/../../services/GradesService.php';
+
 $gradeModel = new Grades(Database::getConnection());
 $gradeController = new GradesService($gradeModel);
 $userId = (int) $_SESSION['user']['id'];
+
 try {
     $studentQuery = Database::getConnection()->prepare('SELECT student_no, first_name, middle_name, last_name FROM students WHERE user_id = :user_id LIMIT 1');
     $studentQuery->execute(['user_id' => $userId]);
     $student = $studentQuery->fetch();
-    if (!$student) { http_response_code(404); exit('No student profile is linked to this account. Please contact the Registrar.'); }
+
+    if (!$student) {
+        http_response_code(404);
+        exit('No student profile is linked to this account. Please contact the Registrar.');
+    }
+
     $gradeTerms = $gradeModel->getStudentTerms($userId);
     $requestedTermId = filter_input(INPUT_GET, 'term_id', FILTER_VALIDATE_INT);
     $selectedTerm = null;
+
     foreach ($gradeTerms as $gradeTerm) {
-        if ($requestedTermId && (int) $gradeTerm['id'] === $requestedTermId) { $selectedTerm = $gradeTerm; break; }
-        if ($selectedTerm === null && (int) $gradeTerm['is_current'] === 1) { $selectedTerm = $gradeTerm; }
+        if ($requestedTermId && (int) $gradeTerm['id'] === $requestedTermId) {
+            $selectedTerm = $gradeTerm;
+            break;
+        }
+        if ($selectedTerm === null && (int) $gradeTerm['is_current'] === 1) {
+            $selectedTerm = $gradeTerm;
+        }
     }
-    if ($selectedTerm === null && $gradeTerms !== []) { $selectedTerm = $gradeTerms[0]; }
+
+    if ($selectedTerm === null && $gradeTerms !== []) {
+        $selectedTerm = $gradeTerms[0];
+    }
+
     $releasedGrades = $selectedTerm ? $gradeController->getStudentGrades($userId, (int) $selectedTerm['id']) : [];
     $allReleasedGrades = $gradeController->getStudentGrades($userId, null);
 } catch (Throwable $exception) {
@@ -25,17 +42,28 @@ try {
     http_response_code(503);
     exit('Grade information is temporarily unavailable. Please try again later.');
 }
-$esc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
-$studentName = trim(implode(' ', array_filter([$student['first_name'], $student['middle_name'], $student['last_name']], static fn ($part): bool => $part !== null && $part !== '')));
+
+$esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
+$studentName = trim(implode(' ', array_filter([$student['first_name'], $student['middle_name'], $student['last_name']], static fn($part): bool => $part !== null && $part !== '')));
+
 $weightedAverage = static function (array $rows): ?float {
-    $points = 0.0; $units = 0.0;
-    foreach ($rows as $row) { if ($row['grade'] !== null) { $points += (float) $row['grade'] * (float) $row['units']; $units += (float) $row['units']; } }
+    $points = 0.0;
+    $units = 0.0;
+    foreach ($rows as $row) {
+        if ($row['grade'] !== null) {
+            $points += (float) $row['grade'] * (float) $row['units'];
+            $units += (float) $row['units'];
+        }
+    }
     return $units > 0 ? $points / $units : null;
 };
+
 $termGpa = $weightedAverage($releasedGrades);
 $cumulativeGpa = $weightedAverage($allReleasedGrades);
-$termUnits = array_sum(array_map(static fn ($row): float => (float) $row['units'], $releasedGrades));
-$earnedUnits = array_sum(array_map(static fn ($row): float => $row['grade_status'] === 'Passed' ? (float) $row['units'] : 0.0, $releasedGrades));
+$termUnits = array_sum(array_map(static fn($row): float => (float) $row['units'], $releasedGrades));
+
+$earnedUnits = array_sum(array_map(static fn($row): float => $row['grade_status'] === 'Passed' ? (float) $row['units'] : 0.0, $releasedGrades));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -81,7 +109,7 @@ $earnedUnits = array_sum(array_map(static fn ($row): float => $row['grade_status
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Top Navigation Bar -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -240,10 +268,19 @@ $earnedUnits = array_sum(array_map(static fn ($row): float => $row['grade_status
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
-                        <?php foreach ($releasedGrades as $gradeRow): $evaluation = $gradeRow['grade_status'] ?? '—'; $evaluationClass = $evaluation === 'Passed' ? 'text-emerald-700' : ($evaluation === 'Failed' ? 'text-red-700' : 'text-amber-700'); ?>
-                        <tr class="hover:bg-gray-50/50 transition-colors"><td class="py-3.5 px-5 font-bold text-brand-dark"><?= $esc($gradeRow['code']) ?></td><td class="py-3.5 px-5"><?= $esc($gradeRow['subject_name']) ?></td><td class="py-3.5 px-5 text-center font-semibold text-brand-dark"><?= number_format((float) $gradeRow['units'], 1) ?></td><td class="py-3.5 px-5 text-center font-bold text-brand-dark text-sm"><?= $gradeRow['grade'] === null ? '—' : number_format((float) $gradeRow['grade'], 2) ?></td><td class="py-3.5 px-5 text-right font-semibold <?= $evaluationClass ?>"><?= $esc($evaluation) ?></td></tr>
+                        <?php foreach ($releasedGrades as $gradeRow): $evaluation = $gradeRow['grade_status'] ?? '—';
+                            $evaluationClass = $evaluation === 'Passed' ? 'text-emerald-700' : ($evaluation === 'Failed' ? 'text-red-700' : 'text-amber-700'); ?>
+                            <tr class="hover:bg-gray-50/50 transition-colors">
+                                <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $esc($gradeRow['code']) ?></td>
+                                <td class="py-3.5 px-5"><?= $esc($gradeRow['subject_name']) ?></td>
+                                <td class="py-3.5 px-5 text-center font-semibold text-brand-dark"><?= number_format((float) $gradeRow['units'], 1) ?></td>
+                                <td class="py-3.5 px-5 text-center font-bold text-brand-dark text-sm"><?= $gradeRow['grade'] === null ? '—' : number_format((float) $gradeRow['grade'], 2) ?></td>
+                                <td class="py-3.5 px-5 text-right font-semibold <?= $evaluationClass ?>"><?= $esc($evaluation) ?></td>
+                            </tr>
                         <?php endforeach; ?>
-                        <?php if ($releasedGrades === []): ?><tr><td colspan="5" class="py-8 px-5 text-center text-gray-500">There are no released grades for this term.</td></tr><?php endif; ?>
+                        <?php if ($releasedGrades === []): ?><tr>
+                                <td colspan="5" class="py-8 px-5 text-center text-gray-500">There are no released grades for this term.</td>
+                            </tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -280,65 +317,82 @@ $earnedUnits = array_sum(array_map(static fn ($row): float => $row['grade_status
         });
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>

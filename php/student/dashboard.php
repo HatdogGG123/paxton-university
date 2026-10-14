@@ -16,13 +16,20 @@ try {
     http_response_code(503);
     exit('Student information is temporarily unavailable. Please try again later.');
 }
+
 $esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
 $student = $dashboard['profile'];
 $studentFullName = trim(implode(' ', array_filter([$student['first_name'], $student['middle_name'], $student['last_name']])));
+
 $termLabel = $dashboard['term'] ? $dashboard['term']['semester'] . ' ' . $dashboard['term']['academic_year'] : 'No current term';
+
 $enrollmentStatus = $dashboard['enrollment']['status'] ?? 'Not Enrolled';
+
 $clearanceStatus = $dashboard['clearance']['overall_status'] ?? 'Not Started';
+
 $outstandingBalance = $dashboard['outstanding_balance'];
+
 $activeRequestCount = $dashboard['active_request_count'];
 ?>
 <!DOCTYPE html>

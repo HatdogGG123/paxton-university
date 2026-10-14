@@ -6,30 +6,38 @@ require_once __DIR__ . '/../../services/EnrollmentService.php';
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+
 $userId = (int) $_SESSION['user']['id'];
+
 $enrollment = new Enrollment(Database::getConnection());
 $controller = new EnrollmentService($enrollment);
 $notice = $_SESSION['enrollment_notice'] ?? null;
+
 unset($_SESSION['enrollment_notice']);
+
 $submittedSubjects = [];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $token = $_POST['csrf_token'] ?? '';
         if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
             throw new DomainException('This form expired. Refresh the page and try again.');
         }
+
         if (($_POST['action'] ?? '') === 'submit_request') {
             $number = $controller->submitStudentRequest($userId, $_POST);
             $_SESSION['enrollment_notice'] = ['type' => 'success', 'message' => 'Enrollment request ' . $number . ' was submitted.'];
             header('Location: enrollment.php');
             exit;
         }
+
         if (($_POST['action'] ?? '') === 'cancel_request') {
             $controller->cancelStudentRequest($userId, $_POST['enrollment_id'] ?? null);
             $_SESSION['enrollment_notice'] = ['type' => 'success', 'message' => 'Your pending enrollment request was cancelled.'];
             header('Location: enrollment.php');
             exit;
         }
+
         throw new DomainException('Choose a valid enrollment action.');
     } catch (DomainException $exception) {
         $notice = ['type' => 'error', 'message' => $exception->getMessage()];
@@ -39,30 +47,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $notice = ['type' => 'error', 'message' => 'We could not process this enrollment action. Please try again.'];
     }
 }
+
 try {
     $student = $enrollment->getStudentContext($userId);
     $term = $enrollment->getCurrentTerm();
     $unitLimit = $enrollment->getUnitLimit();
+
     if ($student === null) {
         http_response_code(404);
         exit('No student profile is linked to this account. Please contact the Registrar.');
     }
+
     $yearLevel = filter_input(INPUT_GET, 'year_level', FILTER_VALIDATE_INT);
     $yearLevel = ($yearLevel && $yearLevel >= 1 && $yearLevel <= (int) $student['year_level']) ? $yearLevel : (int) $student['year_level'];
+
     $request = $term ? $enrollment->getLatestStudentRequest((int) $student['student_id'], (int) $term['id']) : null;
+
     $subjects = $term ? $enrollment->getAvailableSubjects((int) $student['program_id'], $yearLevel, $term['semester']) : [];
 } catch (Throwable $exception) {
     error_log('SSIS enrollment page load failed: ' . $exception->getMessage());
     http_response_code(503);
     exit('Enrollment is temporarily unavailable. Please try again later.');
 }
+
 $esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
 $studentName = trim(implode(' ', array_filter([$student['first_name'], $student['middle_name'], $student['last_name']], static fn($part): bool => $part !== null && $part !== '')));
+
 $enrollmentWindowOpen = $term !== null && !empty($term['enrollment_open_at']) && !empty($term['enrollment_close_at']) && time() >= strtotime($term['enrollment_open_at']) && time() <= strtotime($term['enrollment_close_at']);
+
 $canSubmit = $enrollmentWindowOpen && ($request === null || in_array($request['status'], ['Rejected', 'Cancelled'], true));
-$statusStyle = ['Pending' => 'bg-blue-100 text-blue-800', 'Under Review' => 'bg-blue-100 text-blue-800', 'Approved' => 'bg-teal-100 text-teal-800', 'Rejected' => 'bg-red-100 text-red-800', 'Enrolled' => 'bg-emerald-100 text-emerald-800', 'Cancelled' => 'bg-gray-100 text-gray-700'];
+
+$statusStyle = [
+    'Pending' => 'bg-blue-100 text-blue-800',
+    'Under Review' => 'bg-blue-100 text-blue-800',
+    'Approved' => 'bg-teal-100 text-teal-800',
+    'Rejected' => 'bg-red-100 text-red-800',
+    'Enrolled' => 'bg-emerald-100 text-emerald-800',
+    'Cancelled' => 'bg-gray-100 text-gray-700'
+];
+
 $selectedIds = $submittedSubjects ?: ($request && $request['status'] === 'Rejected' ? array_map(static fn($s): string => (string) $s['id'], $request['subjects']) : []);
 $selectedUnits = 0.0;
+
 foreach ($subjects as $subject) {
     if (in_array((string) $subject['id'], array_map('strval', $selectedIds), true)) {
         $selectedUnits += (float) $subject['units'];
@@ -452,12 +479,20 @@ foreach ($subjects as $subject) {
                             var action = form.querySelector('[name="action"]')?.value || '';
                             if (action === 'cancel_request') {
                                 var row = form.closest('tr');
-                                if (row) { row.dataset.status = 'Cancelled'; row.querySelectorAll('button').forEach(function(button) { button.remove(); }); }
+                                if (row) {
+                                    row.dataset.status = 'Cancelled';
+                                    row.querySelectorAll('button').forEach(function(button) {
+                                        button.remove();
+                                    });
+                                }
                                 showToast('success', response.message || 'Enrollment request cancelled.');
                             } else {
-                                var banner = document.createElement('section'); banner.id = 'banner_enrollment_status'; banner.className = 'bg-white border border-gray-200 rounded-md p-6 shadow-xs';
+                                var banner = document.createElement('section');
+                                banner.id = 'banner_enrollment_status';
+                                banner.className = 'bg-white border border-gray-200 rounded-md p-6 shadow-xs';
                                 banner.innerHTML = '<span id="badge_enrollment_status" class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-800">Pending</span><p class="mt-2 text-sm font-bold">Your enrollment request was submitted.</p><p class="text-xs text-gray-600">The Registrar will review your selected subjects.</p>';
-                                form.before(banner); form.remove();
+                                form.before(banner);
+                                form.remove();
                                 showToast('success', response.message || 'Enrollment request submitted.');
                             }
                         } else {
@@ -488,65 +523,82 @@ foreach ($subjects as $subject) {
             };
         })(window.jQuery);
     </script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>
