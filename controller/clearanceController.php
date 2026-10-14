@@ -35,7 +35,11 @@ try {
 
     (new ClearanceService($model))->review((int) $_SESSION['user']['id'], ucfirst($role), $departmentId, $_POST);
 
-    $messages = ['registrar' => 'The clearance decision was saved and the student was notified.', 'cashier' => 'Cashier clearance updated.', 'department' => 'Clearance decision saved and student notified.'];
+    $messages = [
+        'registrar' => 'The clearance decision was saved and the student was notified.',
+        'cashier' => 'Cashier clearance updated.',
+        'department' => 'Clearance decision saved and student notified.'
+    ];
     $message = $messages[$role];
 
     echo json_encode(['status' => 'success', 'message' => $message, 'data' => ['redirect' => 'clearance.php']]);

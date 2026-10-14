@@ -8,6 +8,7 @@ ssis_start_session();
 
 $isAjax = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest'
     || str_contains(strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
+
 $sendJson = static function (int $status, array $payload): void {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
@@ -36,34 +37,56 @@ try {
         if (($_POST['privacy_consent'] ?? '') !== '1') {
             throw new DomainException('Please review and accept the Data Privacy Notice and Consent before submitting.');
         }
+
         $credentials = (new AdmissionService($model))->submit($_POST);
+
         $_SESSION['applicant_credentials'] = $credentials;
+
         $user = (new User($db))->authenticate($credentials['application_no'], $credentials['password']);
-        if ($user === null) throw new RuntimeException('Applicant account was created but sign-in failed.');
+
+        if ($user === null) {
+            throw new RuntimeException('Applicant account was created but sign-in failed.');
+        }
+
         session_regenerate_id(true);
+
         $_SESSION['user'] = $user;
         $_SESSION['last_activity'] = time();
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
         if ($isAjax) $sendJson(201, [
             'message' => 'Application received and applicant account created.',
             'application_no' => $credentials['application_no'],
             'password' => $credentials['password'],
         ]);
+
         header('Location: ' . ssis_app_base_path() . '/application.php?submitted=' . rawurlencode($credentials['application_no']));
+
         exit;
     }
+
     if ($action === 'confirm_approval') {
         ssis_require_role('applicant');
+
         $studentNo = $model->confirmApplicantApproval((int) $_SESSION['user']['id']);
         $_SESSION['user']['role'] = 'Student';
         $_SESSION['user']['username'] = $studentNo;
-        if ($isAjax) $sendJson(200, ['message' => 'Your student account is now active.', 'redirect' => ssis_app_base_path() . '/php/student/dashboard.php?admitted=1']);
+
+        if ($isAjax) {
+            $sendJson(200, ['message' => 'Your student account is now active.', 'redirect' => ssis_app_base_path() . '/php/student/dashboard.php?admitted=1']);
+        }
+
         header('Location: ' . ssis_app_base_path() . '/php/student/dashboard.php?admitted=1');
         exit;
     }
+
     if (in_array($action, ['submit_document', 'submit_face_to_face'], true)) {
-        if ($action === 'submit_document') ssis_require_role('applicant');
-        else ssis_require_role(['admin', 'registrar']);
+        if ($action === 'submit_document') {
+            ssis_require_role('applicant');
+        } else {
+            ssis_require_role(['admin', 'registrar']);
+        }
+
         $app = $action === 'submit_document'
             ? $model->getApplicantApplication((int) $_SESSION['user']['id'])
             : (static function () use ($model): ?array {
@@ -71,26 +94,57 @@ try {
                 foreach ($model->queue() as $candidate) if ((int) $candidate['id'] === (int) $appId) return $candidate;
                 return null;
             })();
-        if (!$app) throw new DomainException('No application is linked to this account.');
+
+        if (!$app) {
+            throw new DomainException('No application is linked to this account.');
+        }
+
         $requirementId = filter_var($_POST['requirement_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-        if (!$requirementId) throw new DomainException('Choose a valid required document.');
+
+        if (!$requirementId) {
+            throw new DomainException('Choose a valid required document.');
+        }
+
         $path = null;
+
         $method = $action === 'submit_document' ? 'Online' : 'Face to Face';
+
         if ($method === 'Online') {
             $file = $_FILES['document_file'] ?? null;
-            if (!$file || $file['error'] !== UPLOAD_ERR_OK || $file['size'] > 5 * 1024 * 1024) throw new DomainException('Upload a PDF, JPG, or PNG file no larger than 5 MB.');
+            if (!$file || $file['error'] !== UPLOAD_ERR_OK || $file['size'] > 5 * 1024 * 1024) {
+                throw new DomainException('Upload a PDF, JPG, or PNG file no larger than 5 MB.');
+            }
+
             $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
             $extensions = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png'];
-            if (!isset($extensions[$mime])) throw new DomainException('Only PDF, JPG, and PNG documents are accepted.');
+
+            if (!isset($extensions[$mime])) {
+                throw new DomainException('Only PDF, JPG, and PNG documents are accepted.');
+            }
             $directory = __DIR__ . '/../uploads/admissions';
-            if (!is_dir($directory) && !mkdir($directory, 0750, true) && !is_dir($directory)) throw new RuntimeException('Upload folder is unavailable.');
+
+            if (!is_dir($directory) && !mkdir($directory, 0750, true) && !is_dir($directory)) {
+                throw new RuntimeException('Upload folder is unavailable.');
+            }
             $name = bin2hex(random_bytes(20)) . '.' . $extensions[$mime];
-            if (!move_uploaded_file($file['tmp_name'], $directory . '/' . $name)) throw new RuntimeException('The document upload could not be saved.');
+
+            if (!move_uploaded_file($file['tmp_name'], $directory . '/' . $name)) {
+                throw new RuntimeException('The document upload could not be saved.');
+            }
             $path = $name;
         }
+
         $documentId = $model->recordSubmission((int) $app['id'], $requirementId, $method, $path);
         $returnPath = $action === 'submit_document' ? '/php/applicant/dashboard.php?updated=1' : '/php/registrar/admissions.php?updated=1';
-        if ($isAjax) $sendJson(200, ['message' => 'Document submission saved.', 'document_id' => $documentId, 'data' => ['document_id' => $documentId, 'review_status' => 'Pending', 'submission_method' => $method]]);
+
+        if ($isAjax) {
+            $sendJson(200, [
+                'message' => 'Document submission saved.',
+                'document_id' => $documentId,
+                'data' => ['document_id' => $documentId, 'review_status' => 'Pending', 'submission_method' => $method]
+            ]);
+        }
+
         header('Location: ' . ssis_app_base_path() . $returnPath);
         exit;
     }
@@ -151,11 +205,15 @@ try {
         header('Location: ' . ssis_app_base_path() . '/application.php');
         exit;
     }
+
     error_log('SSIS admission database action failed: ' . $exception->getMessage());
     http_response_code(500);
     echo 'The admission action could not be completed.';
 } catch (Throwable $exception) {
-    if ($isAjax) $sendJson(500, ['message' => 'The admission action could not be completed.']);
+    if ($isAjax) {
+        $sendJson(500, ['message' => 'The admission action could not be completed.']);
+    }
+
     error_log('SSIS admission action failed: ' . $exception->getMessage());
     http_response_code(500);
     echo 'The admission action could not be completed.';
