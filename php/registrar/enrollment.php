@@ -1,20 +1,29 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
 ssis_require_role('registrar');
+
 require_once __DIR__ . '/../../services/EnrollmentService.php';
+
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+
 $model = new Enrollment(Database::getConnection());
 $controller = new EnrollmentService($model);
+
 $notice = $_SESSION['registrar_enrollment_notice'] ?? null;
+
 unset($_SESSION['registrar_enrollment_notice']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $token = $_POST['csrf_token'] ?? '';
+
         if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
             throw new DomainException('This form expired. Refresh the page and try again.');
         }
+
         if (($_POST['action'] ?? '') === 'approve_and_update') {
             $controller->updateReviewedSubjects((int) $_SESSION['user']['id'], $_POST);
             $reviewResult = $controller->reviewRequest((int) $_SESSION['user']['id'], $_POST + ['new_status' => 'Approved']);
@@ -26,7 +35,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $reviewResult = $controller->reviewRequest((int) $_SESSION['user']['id'], $_POST);
             $message = $reviewResult['message'];
         }
-        if (isset($reviewResult) && $reviewResult['status'] === 'Cancelled') $message = $reviewResult['message'];
+
+        if (isset($reviewResult) && $reviewResult['status'] === 'Cancelled') {
+            $message = $reviewResult['message'];
+        }
+
         $_SESSION['registrar_enrollment_notice'] = ['type' => 'success', 'message' => $message];
         header('Location: enrollment.php' . (!empty($_GET['status']) ? '?status=' . rawurlencode((string) $_GET['status']) : ''));
         exit;
@@ -37,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $notice = ['type' => 'error', 'message' => 'We could not update the enrollment request. Please try again.'];
     }
 }
+
 try {
     $term = $model->getCurrentTerm();
     $allRequests = $term ? $model->getRegistrarQueue((int) $term['id']) : [];
@@ -45,21 +59,32 @@ try {
     http_response_code(503);
     exit('The enrollment queue is temporarily unavailable. Please try again later.');
 }
+
 $statuses = ['Pending', 'Under Review', 'Approved', 'Enrolled', 'Rejected', 'Cancelled'];
 $requestedFilter = $_GET['status'] ?? null;
+
 $filter = is_string($requestedFilter) && in_array($requestedFilter, $statuses, true) ? $requestedFilter : '';
 $requests = $filter === ''
+
     ? array_values(array_filter($allRequests, static fn($row): bool => $row['status'] !== 'Enrolled'))
     : array_values(array_filter($allRequests, static fn($row): bool => $row['status'] === $filter));
+
 $counts = array_fill_keys($statuses, 0);
+
 foreach ($allRequests as $row) {
     $counts[$row['status']]++;
 }
+
 $esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
 $statusStyle = ['Pending' => 'bg-amber-100 text-amber-800', 'Under Review' => 'bg-blue-100 text-blue-800', 'Approved' => 'bg-teal-100 text-teal-800', 'Enrolled' => 'bg-emerald-100 text-emerald-800', 'Rejected' => 'bg-red-100 text-red-800', 'Cancelled' => 'bg-gray-100 text-gray-700'];
+
 $staffName = $_SESSION['user']['full_name'] ?: $_SESSION['user']['username'];
+
 $unitLimit = $model->getUnitLimit();
+
 $requestsById = [];
+
 foreach ($requests as $row) {
     $requestsById[(int) $row['id']] = $row;
 }
@@ -347,9 +372,11 @@ foreach ($requests as $row) {
                 submittedSubjects.forEach(subject => {
                     const subjectId = String(subject.id);
                     const eligibleSubject = subjectsById.get(subjectId);
-                    subjectsById.set(subjectId, eligibleSubject
-                        ? { ...eligibleSubject, is_selected: 1 }
-                        : subject);
+                    subjectsById.set(subjectId, eligibleSubject ? {
+                            ...eligibleSubject,
+                            is_selected: 1
+                        } :
+                        subject);
                 });
                 subjects = Array.from(subjectsById.values());
             }
@@ -459,7 +486,9 @@ foreach ($requests as $row) {
                     .done(function(response) {
                         if (response && response.status === 'success') {
                             var enrollmentId = form.querySelector('[name="enrollment_id"]')?.value || document.getElementById('review_enrollment_id')?.value || document.getElementById('reject_enrollment_id')?.value;
-                            var row = form.closest('tr') || Array.from(document.querySelectorAll('tbody tr')).find(function (candidate) { return candidate.querySelector('button[onclick*="' + Number(enrollmentId) + '"]') || candidate.querySelector('input[name="enrollment_id"][value="' + Number(enrollmentId) + '"]'); });
+                            var row = form.closest('tr') || Array.from(document.querySelectorAll('tbody tr')).find(function(candidate) {
+                                return candidate.querySelector('button[onclick*="' + Number(enrollmentId) + '"]') || candidate.querySelector('input[name="enrollment_id"][value="' + Number(enrollmentId) + '"]');
+                            });
                             var status = response.data?.status || form.querySelector('[name="new_status"], [name="status"]')?.value || (form.querySelector('[name="action"]')?.value === 'approve_and_update' ? 'Approved' : (form.querySelector('[name="action"]')?.value === 'update_subjects' ? 'Under Review' : ''));
                             if (status && enrollmentRequests[enrollmentId]) enrollmentRequests[enrollmentId].status = status;
                             if (row && status) {
@@ -517,65 +546,82 @@ foreach ($requests as $row) {
             };
         })(window.jQuery);
     </script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>

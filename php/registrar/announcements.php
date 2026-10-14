@@ -1,21 +1,31 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
 ssis_require_role('registrar');
+
 require_once __DIR__ . '/../../models/RegistrarCommunications.php';
+
 $communications = new RegistrarCommunications(Database::getConnection());
+
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+
 $communicationNotice = $_SESSION['registrar_communications_notice'] ?? null;
+
 unset($_SESSION['registrar_communications_notice']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $token = $_POST['csrf_token'] ?? '';
+
         if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
             throw new DomainException('This form expired. Refresh the page and try again.');
         }
+
         $action = (string) ($_POST['communication_action'] ?? '');
         $registrarId = (int) $_SESSION['user']['id'];
+
         if ($action === 'publish') {
             $communications->publishAnnouncement($registrarId, (string) ($_POST['title'] ?? ''), (string) ($_POST['body'] ?? ''), (string) ($_POST['audience'] ?? ''));
             $communicationNotice = ['success' => true, 'message' => 'Announcement published.'];
@@ -34,12 +44,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log('SSIS registrar communication failed: ' . $exception->getMessage());
         $communicationNotice = ['success' => false, 'message' => 'The action could not be completed. Please try again.'];
     }
+
     $_SESSION['registrar_communications_notice'] = $communicationNotice;
     header('Location: announcements.php');
     exit;
 }
+
 $announcements = $communications->getAnnouncements();
 $directMessages = $communications->getDirectMessages();
+
 $communicationCounts = $communications->getCounts();
 $communicationEsc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 ?>
@@ -561,7 +574,9 @@ $communicationEsc = static fn($value): string => htmlspecialchars((string) ($val
                             if (action === 'deactivate') {
                                 var announcementId = Number(data.announcement_id || form.querySelector('[name="announcement_id"]')?.value);
                                 var announcementRow = Array.from(document.querySelectorAll('tr[data-announcement-id]'))
-                                    .find(function(row) { return Number(row.dataset.announcementId) === announcementId; });
+                                    .find(function(row) {
+                                        return Number(row.dataset.announcementId) === announcementId;
+                                    });
                                 var deleteButton = announcementRow?.cells[3]?.querySelector('button:not(.js-view-announcement)');
                                 if (deleteButton) {
                                     var inactive = document.createElement('span');

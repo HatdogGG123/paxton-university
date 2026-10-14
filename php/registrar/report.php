@@ -1,12 +1,22 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
 ssis_require_role('registrar');
+
 require_once __DIR__ . '/../../models/RegistrarReports.php';
+
 $reportModel = new RegistrarReports(Database::getConnection());
 $reportTerms = $reportModel->getTerms();
 $reportPrograms = $reportModel->getPrograms();
 $currentReportTerm = null;
-foreach ($reportTerms as $candidateTerm) { if (!empty($candidateTerm['is_current'])) { $currentReportTerm = $candidateTerm; break; } }
+
+foreach ($reportTerms as $candidateTerm) {
+    if (!empty($candidateTerm['is_current'])) {
+        $currentReportTerm = $candidateTerm;
+        break;
+    }
+}
+
 $reportFilters = [
     'term_id' => filter_input(INPUT_GET, 'term_id', FILTER_VALIDATE_INT) ?: (int) ($currentReportTerm['id'] ?? ($reportTerms[0]['id'] ?? 0)),
     'program_id' => filter_input(INPUT_GET, 'program_id', FILTER_VALIDATE_INT) ?: 0,
@@ -14,22 +24,40 @@ $reportFilters = [
     'date_from' => is_string($_GET['date_from'] ?? null) ? (string) $_GET['date_from'] : '',
     'date_to' => is_string($_GET['date_to'] ?? null) ? (string) $_GET['date_to'] : '',
 ];
+
 $allowedEnrollmentStatuses = ['', 'Pending', 'Under Review', 'Approved', 'Rejected', 'Enrolled', 'Cancelled'];
-if (!in_array($reportFilters['status'], $allowedEnrollmentStatuses, true)) { $reportFilters['status'] = ''; }
-foreach (['date_from', 'date_to'] as $dateField) {
-    if ($reportFilters[$dateField] !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $reportFilters[$dateField])) { $reportFilters[$dateField] = ''; }
+
+if (!in_array($reportFilters['status'], $allowedEnrollmentStatuses, true)) {
+    $reportFilters['status'] = '';
 }
-$validTermIds = array_map(static fn ($term): int => (int) $term['id'], $reportTerms);
-if (!in_array($reportFilters['term_id'], $validTermIds, true)) { $reportFilters['term_id'] = (int) ($currentReportTerm['id'] ?? ($reportTerms[0]['id'] ?? 0)); }
-$validProgramIds = array_map(static fn ($program): int => (int) $program['id'], $reportPrograms);
-if (!in_array($reportFilters['program_id'], $validProgramIds, true)) { $reportFilters['program_id'] = 0; }
+
+foreach (['date_from', 'date_to'] as $dateField) {
+    if ($reportFilters[$dateField] !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $reportFilters[$dateField])) {
+        $reportFilters[$dateField] = '';
+    }
+}
+
+$validTermIds = array_map(static fn($term): int => (int) $term['id'], $reportTerms);
+if (!in_array($reportFilters['term_id'], $validTermIds, true)) {
+    $reportFilters['term_id'] = (int) ($currentReportTerm['id'] ?? ($reportTerms[0]['id'] ?? 0));
+}
+
+$validProgramIds = array_map(static fn($program): int => (int) $program['id'], $reportPrograms);
+if (!in_array($reportFilters['program_id'], $validProgramIds, true)) {
+    $reportFilters['program_id'] = 0;
+}
+
 $reportRows = $reportModel->getRows($reportFilters);
-$reportTotalEnrolled = array_sum(array_map(static fn ($row): int => (int) $row['enrollment_count'], $reportRows));
-$reportPendingRequests = array_sum(array_map(static fn ($row): int => (int) $row['pending_request_count'], $reportRows));
-$reportGradeCount = array_sum(array_map(static fn ($row): int => (int) $row['grade_count'], $reportRows));
-$reportReleasedGrades = array_sum(array_map(static fn ($row): int => (int) $row['released_grade_count'], $reportRows));
+
+$reportTotalEnrolled = array_sum(array_map(static fn($row): int => (int) $row['enrollment_count'], $reportRows));
+$reportPendingRequests = array_sum(array_map(static fn($row): int => (int) $row['pending_request_count'], $reportRows));
+
+$reportGradeCount = array_sum(array_map(static fn($row): int => (int) $row['grade_count'], $reportRows));
+$reportReleasedGrades = array_sum(array_map(static fn($row): int => (int) $row['released_grade_count'], $reportRows));
+
 $reportGradePercent = $reportGradeCount > 0 ? round(($reportReleasedGrades / $reportGradeCount) * 100, 1) : 0;
-$reportEsc = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
+$reportEsc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -73,7 +101,7 @@ $reportEsc = static fn ($value): string => htmlspecialchars((string) ($value ?? 
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Navigation Header -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -109,8 +137,8 @@ $reportEsc = static fn ($value): string => htmlspecialchars((string) ($value ?? 
                     </div>
 
                     <a href="logout.php" class="p-2 text-gray-400 hover:text-red-600 rounded-md hover:bg-gray-100 transition-colors" title="Log Out">
-                            <i data-lucide="log-out" class="w-5 h-5"></i>
-                        </a>
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </a>
                     <button type="button" id="btn_mobile_menu" class="lg:hidden p-2 rounded-md text-gray-500 hover:text-brand-dark hover:bg-gray-100 focus:outline-none">
                         <i data-lucide="menu" id="icon_menu_open" class="w-6 h-6"></i>
                         <i data-lucide="x" id="icon_menu_close" class="w-6 h-6 hidden"></i>
@@ -159,32 +187,32 @@ $reportEsc = static fn ($value): string => htmlspecialchars((string) ($value ?? 
             <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Report Filters</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <form id="report_filters" method="get" class="contents">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Academic Term</label>
-                    <select name="term_id" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50" onchange="this.form.submit()">
-                        <?php foreach ($reportTerms as $term): ?><option value="<?= (int) $term['id'] ?>" <?= (int) $reportFilters['term_id'] === (int) $term['id'] ? 'selected' : '' ?>><?= $reportEsc($term['semester'] . ' ' . $term['academic_year']) ?></option><?php endforeach; ?>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Program</label>
-                    <select name="program_id" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
-                        <option value="">All Programs</option>
-                        <?php foreach ($reportPrograms as $program): ?><option value="<?= (int) $program['id'] ?>" <?= $reportFilters['program_id'] === (int) $program['id'] ? 'selected' : '' ?>><?= $reportEsc($program['name']) ?></option><?php endforeach; ?>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
-                    <select name="status" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
-                        <option value="">All Statuses</option>
-                        <?php foreach (['Pending','Under Review','Approved','Rejected','Enrolled','Cancelled'] as $statusOption): ?><option value="<?= $reportEsc($statusOption) ?>" <?= $reportFilters['status'] === $statusOption ? 'selected' : '' ?>><?= $reportEsc($statusOption) ?></option><?php endforeach; ?>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Date Range</label>
-                    <input type="date" name="date_from" value="<?= $reportEsc($reportFilters['date_from']) ?>" aria-label="Date from" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
-                    <input type="date" name="date_to" value="<?= $reportEsc($reportFilters['date_to']) ?>" aria-label="Date to" class="mt-1 w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
-                </div>
-                <div class="sm:col-span-2 lg:col-span-4 flex justify-end"><button type="submit" class="px-3 py-2 bg-brand-primary text-white rounded-md text-xs font-semibold hover:bg-brand-secondary">Apply Filters</button></div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Academic Term</label>
+                        <select name="term_id" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50" onchange="this.form.submit()">
+                            <?php foreach ($reportTerms as $term): ?><option value="<?= (int) $term['id'] ?>" <?= (int) $reportFilters['term_id'] === (int) $term['id'] ? 'selected' : '' ?>><?= $reportEsc($term['semester'] . ' ' . $term['academic_year']) ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Program</label>
+                        <select name="program_id" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
+                            <option value="">All Programs</option>
+                            <?php foreach ($reportPrograms as $program): ?><option value="<?= (int) $program['id'] ?>" <?= $reportFilters['program_id'] === (int) $program['id'] ? 'selected' : '' ?>><?= $reportEsc($program['name']) ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                        <select name="status" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
+                            <option value="">All Statuses</option>
+                            <?php foreach (['Pending', 'Under Review', 'Approved', 'Rejected', 'Enrolled', 'Cancelled'] as $statusOption): ?><option value="<?= $reportEsc($statusOption) ?>" <?= $reportFilters['status'] === $statusOption ? 'selected' : '' ?>><?= $reportEsc($statusOption) ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Date Range</label>
+                        <input type="date" name="date_from" value="<?= $reportEsc($reportFilters['date_from']) ?>" aria-label="Date from" class="w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
+                        <input type="date" name="date_to" value="<?= $reportEsc($reportFilters['date_to']) ?>" aria-label="Date to" class="mt-1 w-full text-xs border border-gray-200 rounded-md p-2 focus:ring-brand-primary focus:border-brand-primary bg-gray-50/50">
+                    </div>
+                    <div class="sm:col-span-2 lg:col-span-4 flex justify-end"><button type="submit" class="px-3 py-2 bg-brand-primary text-white rounded-md text-xs font-semibold hover:bg-brand-secondary">Apply Filters</button></div>
                 </form>
             </div>
         </section>
@@ -230,15 +258,17 @@ $reportEsc = static fn ($value): string => htmlspecialchars((string) ($value ?? 
                     </thead>
                     <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
                         <?php foreach ($reportRows as $row): $gradePercent = (int) $row['grade_count'] > 0 ? round(((int) $row['released_grade_count'] / (int) $row['grade_count']) * 100, 1) : 0; ?>
-                        <tr class="hover:bg-gray-50/50 transition-colors">
-                            <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $reportEsc($row['name']) ?></td>
-                            <td class="py-3.5 px-5 text-center font-semibold"><?= number_format((int) $row['enrollment_count']) ?></td>
-                            <td class="py-3.5 px-5"><?= number_format((int) $row['pending_request_count']) ?> pending / <?= number_format((int) $row['request_count']) ?> total</td>
-                            <td class="py-3.5 px-5 text-center font-bold <?= $gradePercent >= 90 ? 'text-emerald-700' : 'text-brand-secondary' ?>"><?= number_format($gradePercent, 1) ?>%</td>
-                            <td class="py-3.5 px-5 text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold <?= !empty($row['is_active']) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700' ?>"><?= !empty($row['is_active']) ? 'Active' : 'Inactive' ?></span></td>
-                        </tr>
+                            <tr class="hover:bg-gray-50/50 transition-colors">
+                                <td class="py-3.5 px-5 font-bold text-brand-dark"><?= $reportEsc($row['name']) ?></td>
+                                <td class="py-3.5 px-5 text-center font-semibold"><?= number_format((int) $row['enrollment_count']) ?></td>
+                                <td class="py-3.5 px-5"><?= number_format((int) $row['pending_request_count']) ?> pending / <?= number_format((int) $row['request_count']) ?> total</td>
+                                <td class="py-3.5 px-5 text-center font-bold <?= $gradePercent >= 90 ? 'text-emerald-700' : 'text-brand-secondary' ?>"><?= number_format($gradePercent, 1) ?>%</td>
+                                <td class="py-3.5 px-5 text-right"><span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold <?= !empty($row['is_active']) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700' ?>"><?= !empty($row['is_active']) ? 'Active' : 'Inactive' ?></span></td>
+                            </tr>
                         <?php endforeach; ?>
-                        <?php if (!$reportRows): ?><tr><td colspan="5" class="py-8 px-5 text-center text-gray-500">No programs match these report filters.</td></tr><?php endif; ?>
+                        <?php if (!$reportRows): ?><tr>
+                                <td colspan="5" class="py-8 px-5 text-center text-gray-500">No programs match these report filters.</td>
+                            </tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -282,65 +312,82 @@ $reportEsc = static fn ($value): string => htmlspecialchars((string) ($value ?? 
         }
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.style.display !== 'none' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>

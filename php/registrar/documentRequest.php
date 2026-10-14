@@ -1,20 +1,29 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
+
 ssis_require_role('registrar');
+
 require_once __DIR__ . '/../../services/DocumentRequestsService.php';
+
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+
 $requestModel = new DocumentRequests(Database::getConnection());
 $requestController = new DocumentRequestsService($requestModel);
+
 $notice = $_SESSION['registrar_request_notice'] ?? null;
 unset($_SESSION['registrar_request_notice']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $token = $_POST['csrf_token'] ?? '';
+
         if (!is_string($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
             throw new DomainException('This form expired. Refresh the page and try again.');
         }
+
         if (($_POST['request_action'] ?? '') === 'reject') {
             $requestController->reject((int) $_SESSION['user']['id'], $_POST);
         } elseif (($_POST['request_action'] ?? '') === 'transition') {
@@ -22,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             throw new DomainException('Choose a valid request action.');
         }
+
         $_SESSION['registrar_request_notice'] = ['success' => true, 'message' => 'Document request updated.'];
         header('Location: documentRequest.php');
         exit;
@@ -32,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $notice = ['success' => false, 'message' => 'We could not update this document request. Please try again.'];
     }
 }
+
 try {
     $queue = $requestModel->getRegistrarQueue();
     $types = $requestModel->getActiveTypes();
@@ -40,10 +51,14 @@ try {
     http_response_code(503);
     exit('Document request information is temporarily unavailable. Please try again later.');
 }
+
 $esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
 $registrarName = $_SESSION['user']['full_name'] ?: $_SESSION['user']['username'];
+
 $pendingCount = count(array_filter($queue, static fn($row): bool => $row['status'] === 'Pending'));
 $processingCount = count(array_filter($queue, static fn($row): bool => in_array($row['status'], ['Processing', 'Paid'], true)));
+
 $readyCount = count(array_filter($queue, static fn($row): bool => $row['status'] === 'Ready for Release'));
 ?>
 <!DOCTYPE html>
@@ -454,27 +469,67 @@ $readyCount = count(array_filter($queue, static fn($row): bool => $row['status']
                             var requestNo = form.querySelector('[name="request_no"]')?.value;
                             var action = form.querySelector('[name="request_action"]')?.value;
                             var status = action === 'reject' ? 'Rejected' : (form.querySelector('[name="status"]')?.value || '');
-                            var row = Array.from(document.querySelectorAll('#tbody_documentRequests tr[data-status]')).find(function (candidate) { return candidate.dataset.requestNo === requestNo; });
+                            var row = Array.from(document.querySelectorAll('#tbody_documentRequests tr[data-status]')).find(function(candidate) {
+                                return candidate.dataset.requestNo === requestNo;
+                            });
                             if (row) {
                                 var previousStatus = row.dataset.status;
                                 row.dataset.status = status;
                                 var badge = row.cells[3]?.querySelector('span');
-                                var badgeColors = {'Pending':'bg-amber-100 text-amber-800','Under Review':'bg-amber-100 text-amber-800','For Payment':'bg-orange-100 text-orange-800','Paid':'bg-emerald-100 text-emerald-800','Processing':'bg-blue-100 text-blue-800','Ready for Release':'bg-purple-100 text-purple-800','Completed':'bg-emerald-100 text-emerald-800','Rejected':'bg-red-100 text-red-800','Cancelled':'bg-gray-100 text-gray-700'};
-                                if (badge) { badge.textContent = status; badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold ' + (badgeColors[status] || 'bg-gray-100 text-gray-700'); }
+                                var badgeColors = {
+                                    'Pending': 'bg-amber-100 text-amber-800',
+                                    'Under Review': 'bg-amber-100 text-amber-800',
+                                    'For Payment': 'bg-orange-100 text-orange-800',
+                                    'Paid': 'bg-emerald-100 text-emerald-800',
+                                    'Processing': 'bg-blue-100 text-blue-800',
+                                    'Ready for Release': 'bg-purple-100 text-purple-800',
+                                    'Completed': 'bg-emerald-100 text-emerald-800',
+                                    'Rejected': 'bg-red-100 text-red-800',
+                                    'Cancelled': 'bg-gray-100 text-gray-700'
+                                };
+                                if (badge) {
+                                    badge.textContent = status;
+                                    badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold ' + (badgeColors[status] || 'bg-gray-100 text-gray-700');
+                                }
                                 var cell = row.cells[4];
                                 if (cell) {
                                     cell.replaceChildren();
-                                    var makeButton = function (text, callback, className) { var button = document.createElement('button'); button.type = 'button'; button.className = className; button.textContent = text; button.addEventListener('click', callback); cell.appendChild(button); };
-                                    var ref = row.dataset.requestNo, student = row.dataset.studentName, doc = row.dataset.documentName, fee = Number(row.dataset.fee), payment = row.dataset.paymentStatus;
-                                    if (['Pending','Under Review','Processing','Paid'].includes(status) && (status !== 'Paid' || payment === 'Paid')) makeButton('Update Status', function () { openWorkflowModal(ref, student, doc, status, fee, payment); }, 'inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold bg-brand-primary text-white');
-                                    if (status === 'Ready for Release') makeButton('Mark Completed', function () { openPickupCompletionModal(ref, student); }, 'inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold bg-emerald-600 text-white');
-                                    if (['Pending','Under Review'].includes(status)) makeButton('Reject', function () { openRejectModal(ref); }, 'inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold border border-red-200 text-red-600');
+                                    var makeButton = function(text, callback, className) {
+                                        var button = document.createElement('button');
+                                        button.type = 'button';
+                                        button.className = className;
+                                        button.textContent = text;
+                                        button.addEventListener('click', callback);
+                                        cell.appendChild(button);
+                                    };
+                                    var ref = row.dataset.requestNo,
+                                        student = row.dataset.studentName,
+                                        doc = row.dataset.documentName,
+                                        fee = Number(row.dataset.fee),
+                                        payment = row.dataset.paymentStatus;
+                                    if (['Pending', 'Under Review', 'Processing', 'Paid'].includes(status) && (status !== 'Paid' || payment === 'Paid')) makeButton('Update Status', function() {
+                                        openWorkflowModal(ref, student, doc, status, fee, payment);
+                                    }, 'inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold bg-brand-primary text-white');
+                                    if (status === 'Ready for Release') makeButton('Mark Completed', function() {
+                                        openPickupCompletionModal(ref, student);
+                                    }, 'inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold bg-emerald-600 text-white');
+                                    if (['Pending', 'Under Review'].includes(status)) makeButton('Reject', function() {
+                                        openRejectModal(ref);
+                                    }, 'inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold border border-red-200 text-red-600');
                                 }
-                                var category = function (value) { return value === 'Pending' ? 'pending' : (['Paid','Processing'].includes(value) ? 'processing' : (value === 'Ready for Release' ? 'ready' : '')); };
-                                var oldGroup = category(previousStatus), newGroup = category(status);
-                                if (oldGroup !== newGroup) { if (oldGroup) document.getElementById('cnt_' + oldGroup).textContent = Math.max(0, Number(document.getElementById('cnt_' + oldGroup).textContent) - 1); if (newGroup) document.getElementById('cnt_' + newGroup).textContent = Number(document.getElementById('cnt_' + newGroup).textContent) + 1; }
+                                var category = function(value) {
+                                    return value === 'Pending' ? 'pending' : (['Paid', 'Processing'].includes(value) ? 'processing' : (value === 'Ready for Release' ? 'ready' : ''));
+                                };
+                                var oldGroup = category(previousStatus),
+                                    newGroup = category(status);
+                                if (oldGroup !== newGroup) {
+                                    if (oldGroup) document.getElementById('cnt_' + oldGroup).textContent = Math.max(0, Number(document.getElementById('cnt_' + oldGroup).textContent) - 1);
+                                    if (newGroup) document.getElementById('cnt_' + newGroup).textContent = Number(document.getElementById('cnt_' + newGroup).textContent) + 1;
+                                }
                             }
-                            closeModal('modal_status_workflow'); closeModal('modal_reject_request'); closeModal('modal_pickup_completion');
+                            closeModal('modal_status_workflow');
+                            closeModal('modal_reject_request');
+                            closeModal('modal_pickup_completion');
                             filterQueueTable();
                             showToast('success', response.message || 'Document request updated.');
                         } else {
@@ -505,71 +560,89 @@ $readyCount = count(array_filter($queue, static fn($row): bool => $row['status']
             };
         })(window.jQuery);
     </script>
-<script>
-(function () {
-    const pageSize = 10;
-    const tables = Array.from(document.querySelectorAll('table'));
-    function visibleRows(table) {
-        return Array.from(table.tBodies[0]?.rows || []).filter(row => row.dataset.filterVisible !== 'false' && !row.classList.contains('hidden'));
-    }
-    function controlsFor(table) {
-        let controls = table.nextElementSibling;
-        if (!controls || !controls.matches('[data-local-table-pages]')) {
-            controls = document.createElement('div');
-            controls.dataset.localTablePages = '';
-            controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
-            controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
-            table.insertAdjacentElement('afterend', controls);
-        }
-        return controls;
-    }
-    function refresh(table) {
-        const body = table.tBodies[0];
-        if (!body) return;
-        const allRows = Array.from(body.rows);
-        const rows = visibleRows(table);
-        const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
-        const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
-        table.dataset.localPage = String(page);
-        allRows.forEach(row => { row.style.display = ''; row.hidden = true; });
-        const start = (page - 1) * pageSize;
-        rows.slice(start, start + pageSize).forEach(row => { row.hidden = false; });
-        const controls = controlsFor(table);
-        controls.hidden = rows.length <= pageSize;
-        controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
-        controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
-        controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
-    }
-    let refreshPending = false;
-    function scheduleRefresh() {
-        if (refreshPending) return;
-        refreshPending = true;
-        window.requestAnimationFrame(() => { refreshPending = false; refreshAll(); });
-    }
-    function refreshAll() { tables.forEach(refresh); }
-    window.refreshRegistrarDocumentRequestTable = function () {
-        const table = document.getElementById('table_documentRequests');
-        if (!table) return;
-        table.dataset.localPage = '1';
-        refresh(table);
-    };
-    document.addEventListener('click', event => {
-        const button = event.target.closest('[data-local-page-step]');
-        if (!button) return;
-        const controls = button.closest('[data-local-table-pages]');
-        const table = controls?.previousElementSibling;
-        if (!table || table.tagName !== 'TABLE') return;
-        table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
-        refresh(table);
-    });
-    ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
-    const observer = new MutationObserver(records => {
-        if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    refreshAll();
-})();
-</script>
+    <script>
+        (function() {
+            const pageSize = 10;
+            const tables = Array.from(document.querySelectorAll('table'));
+
+            function visibleRows(table) {
+                return Array.from(table.tBodies[0]?.rows || []).filter(row => row.dataset.filterVisible !== 'false' && !row.classList.contains('hidden'));
+            }
+
+            function controlsFor(table) {
+                let controls = table.nextElementSibling;
+                if (!controls || !controls.matches('[data-local-table-pages]')) {
+                    controls = document.createElement('div');
+                    controls.dataset.localTablePages = '';
+                    controls.className = 'flex w-full items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600';
+                    controls.innerHTML = '<span data-local-page-summary></span><div class="flex gap-2"><button type="button" data-local-page-step="-1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Previous</button><button type="button" data-local-page-step="1" class="rounded border border-gray-300 bg-white px-3 py-2 font-semibold hover:bg-gray-50">Next</button></div>';
+                    table.insertAdjacentElement('afterend', controls);
+                }
+                return controls;
+            }
+
+            function refresh(table) {
+                const body = table.tBodies[0];
+                if (!body) return;
+                const allRows = Array.from(body.rows);
+                const rows = visibleRows(table);
+                const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+                const page = Math.min(Math.max(Number(table.dataset.localPage || 1), 1), pageCount);
+                table.dataset.localPage = String(page);
+                allRows.forEach(row => {
+                    row.style.display = '';
+                    row.hidden = true;
+                });
+                const start = (page - 1) * pageSize;
+                rows.slice(start, start + pageSize).forEach(row => {
+                    row.hidden = false;
+                });
+                const controls = controlsFor(table);
+                controls.hidden = rows.length <= pageSize;
+                controls.querySelector('[data-local-page-summary]').textContent = rows.length ? `Showing ${start + 1} to ${Math.min(start + pageSize, rows.length)} of ${rows.length}` : 'No records to show';
+                controls.querySelector('[data-local-page-step="-1"]').disabled = page <= 1;
+                controls.querySelector('[data-local-page-step="1"]').disabled = page >= pageCount;
+            }
+            let refreshPending = false;
+
+            function scheduleRefresh() {
+                if (refreshPending) return;
+                refreshPending = true;
+                window.requestAnimationFrame(() => {
+                    refreshPending = false;
+                    refreshAll();
+                });
+            }
+
+            function refreshAll() {
+                tables.forEach(refresh);
+            }
+            window.refreshRegistrarDocumentRequestTable = function() {
+                const table = document.getElementById('table_documentRequests');
+                if (!table) return;
+                table.dataset.localPage = '1';
+                refresh(table);
+            };
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-local-page-step]');
+                if (!button) return;
+                const controls = button.closest('[data-local-table-pages]');
+                const table = controls?.previousElementSibling;
+                if (!table || table.tagName !== 'TABLE') return;
+                table.dataset.localPage = String(Number(table.dataset.localPage || 1) + Number(button.dataset.localPageStep));
+                refresh(table);
+            });
+            ['input', 'change', 'keyup'].forEach(name => document.addEventListener(name, scheduleRefresh, true));
+            const observer = new MutationObserver(records => {
+                if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches('tr') || node.querySelector('tr'))))) refreshAll();
+            });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            refreshAll();
+        })();
+    </script>
 </body>
 
 </html>

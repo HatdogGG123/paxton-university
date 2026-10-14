@@ -38,7 +38,7 @@ require_once __DIR__ . '/../includes/notifications-page-data.php';
 </head>
 
 <body class="bg-gray-50 font-sans text-brand-dark antialiased min-h-screen flex flex-col">
-<?php include __DIR__ . '/../component/sidebar.php'; ?>
+    <?php include __DIR__ . '/../component/sidebar.php'; ?>
 
     <!-- Navigation Header with Mobile Menu Support -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -75,8 +75,8 @@ require_once __DIR__ . '/../includes/notifications-page-data.php';
 
                     <!-- Mobile Menu Button (Visible only on small screens) -->
                     <a href="logout.php" id="nav_logout_btn" class="p-2 text-gray-400 hover:text-red-600 rounded-md hover:bg-gray-100 transition-colors" title="Log Out">
-                            <i data-lucide="log-out" class="w-5 h-5"></i>
-                        </a>
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </a>
                     <button type="button" id="btn_mobile_menu" class="lg:hidden p-2 rounded-md text-gray-500 hover:text-brand-dark hover:bg-gray-100 focus:outline-none">
                         <i data-lucide="menu" id="icon_menu_open" class="w-6 h-6"></i>
                         <i data-lucide="x" id="icon_menu_close" class="w-6 h-6 hidden"></i>
@@ -123,60 +123,71 @@ require_once __DIR__ . '/../includes/notifications-page-data.php';
             $('#icon_menu_open').toggleClass('hidden');
             $('#icon_menu_close').toggleClass('hidden');
         });
-
-        
     </script>
     <script src="../../js/private-page-history.js"></script>
-<script>
-(function ($) {
-    if (!$) return;
-    $(document).on('submit', 'form[method="post"], form[method="POST"]', function (event) {
-        if (event.isDefaultPrevented()) return;
-        event.preventDefault();
-        var form = this;
-        var fields = $(form).serializeArray();
-        if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
-            fields.push({ name: event.originalEvent.submitter.name, value: event.originalEvent.submitter.value });
-        }
-        if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({ name: 'action', value: 'handleUserLogin' });
-        $.post('../../controller/notificationsController.php', $.param(fields), null, 'json')
-            .done(function (response) {
-                if (response && response.status === 'success') {
-                    var readAll = $(form).find('[name="notification_action"]').val() === 'read_all';
-                    var $items = readAll ? $('#container_notifications_list .notification-item.unread') : $(form).closest('.notification-item');
-                    $items.each(function () {
-                        var item = this;
-                        item.classList.remove('unread', 'bg-brand-accent/20', 'border-l-brand-primary');
-                        item.classList.add('read', 'bg-white', 'border-l-gray-200');
-                        item.querySelector('[title="Unread"]')?.remove();
-                        item.querySelector('form')?.remove();
-                        if (!item.querySelector('.tracking-wider')) item.insertAdjacentHTML('beforeend', '<span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider shrink-0">Read</span>');
+    <script>
+        (function($) {
+            if (!$) return;
+            $(document).on('submit', 'form[method="post"], form[method="POST"]', function(event) {
+                if (event.isDefaultPrevented()) return;
+                event.preventDefault();
+                var form = this;
+                var fields = $(form).serializeArray();
+                if (event.originalEvent && event.originalEvent.submitter && event.originalEvent.submitter.name) {
+                    fields.push({
+                        name: event.originalEvent.submitter.name,
+                        value: event.originalEvent.submitter.value
                     });
-                    if (readAll) form.remove();
-                    var count = $('#container_notifications_list .notification-item.unread').length;
-                    $('#container_notifications_list > div:first-child p').text(count + ' unread notification' + (count === 1 ? '' : 's'));
-                    showToast('success', response.message || 'Notification updated.');
-                } else {
-                    var message = response && response.message ? response.message : 'The action could not be completed.';
-                    showToast('error', message);
                 }
-            })
-            .fail(function (xhr) {
-                var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
-                showToast('error', message);
-                if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
-                    var button = document.getElementById('btn-submit');
-                    if (button) { button.disabled = false; button.classList.remove('opacity-80', 'cursor-not-allowed'); button.innerHTML = 'Sign In'; }
-                }
+                if (window.location.pathname.toLowerCase().endsWith('/login.php')) fields.push({
+                    name: 'action',
+                    value: 'handleUserLogin'
+                });
+                $.post('../../controller/notificationsController.php', $.param(fields), null, 'json')
+                    .done(function(response) {
+                        if (response && response.status === 'success') {
+                            var readAll = $(form).find('[name="notification_action"]').val() === 'read_all';
+                            var $items = readAll ? $('#container_notifications_list .notification-item.unread') : $(form).closest('.notification-item');
+                            $items.each(function() {
+                                var item = this;
+                                item.classList.remove('unread', 'bg-brand-accent/20', 'border-l-brand-primary');
+                                item.classList.add('read', 'bg-white', 'border-l-gray-200');
+                                item.querySelector('[title="Unread"]')?.remove();
+                                item.querySelector('form')?.remove();
+                                if (!item.querySelector('.tracking-wider')) item.insertAdjacentHTML('beforeend', '<span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider shrink-0">Read</span>');
+                            });
+                            if (readAll) form.remove();
+                            var count = $('#container_notifications_list .notification-item.unread').length;
+                            $('#container_notifications_list > div:first-child p').text(count + ' unread notification' + (count === 1 ? '' : 's'));
+                            showToast('success', response.message || 'Notification updated.');
+                        } else {
+                            var message = response && response.message ? response.message : 'The action could not be completed.';
+                            showToast('error', message);
+                        }
+                    })
+                    .fail(function(xhr) {
+                        var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'The action could not be completed. Please try again.';
+                        showToast('error', message);
+                        if (form.closest('body') && window.location.pathname.toLowerCase().endsWith('/login.php')) {
+                            var button = document.getElementById('btn-submit');
+                            if (button) {
+                                button.disabled = false;
+                                button.classList.remove('opacity-80', 'cursor-not-allowed');
+                                button.innerHTML = 'Sign In';
+                            }
+                        }
+                    });
             });
-    });
-    var nativeSubmit = HTMLFormElement.prototype.submit;
-    HTMLFormElement.prototype.submit = function () {
-        if ((this.method || 'get').toLowerCase() === 'post') { this.requestSubmit(); return; }
-        nativeSubmit.call(this);
-    };
-})(window.jQuery);
-</script>
+            var nativeSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function() {
+                if ((this.method || 'get').toLowerCase() === 'post') {
+                    this.requestSubmit();
+                    return;
+                }
+                nativeSubmit.call(this);
+            };
+        })(window.jQuery);
+    </script>
 </body>
 
 </html>

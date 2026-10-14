@@ -1,14 +1,21 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
 ssis_require_role('registrar');
+
 require_once __DIR__ . '/../../services/ClearanceService.php';
+
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+
 $clearanceModel = new Clearance(Database::getConnection());
 $clearanceController = new ClearanceService($clearanceModel);
+
 $notice = $_SESSION['registrar_clearance_notice'] ?? null;
+
 unset($_SESSION['registrar_clearance_notice']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $token = $_POST['csrf_token'] ?? '';
@@ -26,8 +33,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $notice = ['success' => false, 'message' => 'We could not update this clearance item. Please try again.'];
     }
 }
+
 try {
     $term = $clearanceModel->getCurrentTerm();
+
     if ($term) {
         $clearanceModel->ensureTermClearances((int) $term['id']);
         $queue = $clearanceModel->getOfficeQueue((int) $term['id'], 'Registrar');
@@ -39,15 +48,19 @@ try {
     http_response_code(503);
     exit('Clearance information is temporarily unavailable. Please try again later.');
 }
+
 $esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 $registrarName = $_SESSION['user']['full_name'] ?: $_SESSION['user']['username'];
 $queueData = [];
+
 foreach ($queue as $item) {
     $queueData[(int) $item['item_id']] = $item;
 }
+
 $clearedCount = 0;
 $pendingCount = 0;
 $holdCount = 0;
+
 foreach ($queue as $item) {
     if ($item['status'] === 'Approved') {
         $clearedCount++;

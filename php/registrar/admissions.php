@@ -1,24 +1,41 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+
 ssis_require_role(['admin', 'registrar']);
+
 require_once __DIR__ . '/../../models/Admission.php';
-if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $model = new Admission(Database::getConnection());
+
 $applications = $model->queue();
+
 $admissionError = $_SESSION['admission_error'] ?? null;
+
 unset($_SESSION['admission_error']);
+
 $requirements = $model->requirements();
+
 $programs = $model->programs();
+
 $departments = $model->academicDepartmentsWithPrograms();
+
 $requirementsByProgram = [];
+
 foreach ($requirements as $requirement) {
     $requirementsByProgram[(int) $requirement['program_id']][] = $requirement;
 }
+
 $documents = [];
 if ($applications) {
     $documents = $model->documentsForApplications(array_column($applications, 'id'));
 }
+
 $isAdmin = strtolower((string) $_SESSION['user']['role']) === 'admin';
+
 $esc = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
